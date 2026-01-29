@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "mapradar"
+version = "0.1.0"
+description = "Turn addresses into coordinates and find nearby amenities using Google Maps API"
+authors = [{ name = "iamprecieee" }]
+license = {file = "LICENSE"}
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["geocoding", "location", "maps", "places", "google-maps"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+]
+
+[project.urls]
+Repository = "https://github.com/iamprecieee/mapradar"
+
+[tool.maturin]
+features = ["extension-module"]

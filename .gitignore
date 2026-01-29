@@ -1,0 +1,6 @@
+.env
+test*.py
+*test.py
+target
+.venv
+.git
