@@ -36,8 +36,11 @@ uv add mapradar
 
 ```toml
 [dependencies]
-mapradar = "0.1"
+mapradar = { version = "0.1", default-features = false }
+tokio = { version = "1", features = ["full"] }
 ```
+
+> **Note:** Use `default-features = false` for pure Rust (no Python bindings).
 
 </details>
 
@@ -124,7 +127,7 @@ use mapradar::models::{SearchQuery, ServiceType};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = MapradarClient::new("YOUR_API_KEY".to_string());
     
-    let location = client._geocode("Times Square, NYC").await?;
+    let location = client.geocode_async("Times Square, NYC").await?;
     println!("{}, {} ({})", location.latitude, location.longitude, location.country);
     
     Ok(())

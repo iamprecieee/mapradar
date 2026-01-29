@@ -18,19 +18,22 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let client = MapradarClient::new("YOUR_API_KEY".to_string());
-//!     let location = client._geocode("Times Square, NYC").await?;
+//!     let location = client.geocode_async("Times Square, NYC").await?;
 //!     println!("{}, {}", location.latitude, location.longitude);
 //!     Ok(())
 //! }
 //! ```
 
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+
 pub mod cache;
 pub mod client;
 pub mod error;
 pub mod models;
 pub mod utils;
 
+#[cfg(feature = "python")]
 #[pymodule]
 fn mapradar(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<models::GeoLocation>()?;

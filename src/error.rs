@@ -1,3 +1,4 @@
+#[cfg(feature = "python")]
 use pyo3::prelude::PyErr;
 use thiserror::Error;
 
@@ -42,6 +43,7 @@ impl GeoError {
 }
 
 /// Convention to translate Rust errors into Python-native exceptions.
+#[cfg(feature = "python")]
 impl From<GeoError> for PyErr {
     fn from(err: GeoError) -> PyErr {
         match err {

@@ -7,11 +7,13 @@ use crate::{
     },
     utils::{calculate_distance, parse_address_components},
 };
+
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 use serde_json::Value;
 
 /// Client for interacting with Google Maps APIs with built-in caching.
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass)]
 #[derive(Clone)]
 pub struct MapradarClient {
     api_key: String,
@@ -19,6 +21,7 @@ pub struct MapradarClient {
     cache: GeoCache,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl MapradarClient {
     #[new]
@@ -34,7 +37,7 @@ impl MapradarClient {
     pub fn geocode<'py>(&self, py: Python<'py>, address: String) -> PyResult<Bound<'py, PyAny>> {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let location = client._geocode(&address).await?;
+            let location = client.geocode_async(&address).await?;
             Ok(location)
         })
     }
@@ -48,7 +51,7 @@ impl MapradarClient {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let location = client._reverse_geocode(latitude, longitude).await?;
+            let location = client.reverse_geocode_async(latitude, longitude).await?;
             Ok(location)
         })
     }
@@ -66,7 +69,7 @@ impl MapradarClient {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let services = client
-                ._search_nearby(lat, lng, service_type, radius_meters, max_results)
+                .search_nearby_async(lat, lng, service_type, radius_meters, max_results)
                 .await?;
             Ok(services)
         })
@@ -85,7 +88,7 @@ impl MapradarClient {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let intel = client
-                ._fetch_intelligence(query, service_types, radius_km, max_results_per_type)
+                .fetch_intelligence_async(query, service_types, radius_km, max_results_per_type)
                 .await?;
             Ok(intel)
         })
@@ -101,7 +104,7 @@ impl MapradarClient {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = client._geocode(&address).await;
+            let result = client.geocode_async(&address).await;
             Ok(client._to_rpc_response(id, result))
         })
     }
@@ -117,7 +120,7 @@ impl MapradarClient {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = client._reverse_geocode(latitude, longitude).await;
+            let result = client.reverse_geocode_async(latitude, longitude).await;
             Ok(client._to_rpc_response(id, result))
         })
     }
@@ -138,7 +141,7 @@ impl MapradarClient {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = client
-                ._search_nearby(lat, lng, service_type, radius_meters, max_results)
+                .search_nearby_async(lat, lng, service_type, radius_meters, max_results)
                 .await;
             Ok(client._to_rpc_response(id, result))
         })
@@ -158,7 +161,7 @@ impl MapradarClient {
         let client = self.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = client
-                ._fetch_intelligence(query, service_types, radius_km, max_results_per_type)
+                .fetch_intelligence_async(query, service_types, radius_km, max_results_per_type)
                 .await;
             Ok(client._to_rpc_response(id, result))
         })
@@ -166,6 +169,15 @@ impl MapradarClient {
 }
 
 impl MapradarClient {
+    #[cfg(not(feature = "python"))]
+    pub fn new(api_key: String) -> Self {
+        Self {
+            api_key,
+            http_client: reqwest::Client::new(),
+            cache: GeoCache::new(),
+        }
+    }
+
     fn _to_rpc_response<T: serde::Serialize>(
         &self,
         id: String,
@@ -183,7 +195,7 @@ impl MapradarClient {
         }
     }
 
-    pub async fn _geocode(&self, address: &str) -> Result<GeoLocation, GeoError> {
+    pub async fn geocode_async(&self, address: &str) -> Result<GeoLocation, GeoError> {
         if let Some(cached) = self.cache.get_geocode(address).await {
             return Ok(cached);
         }
@@ -232,7 +244,7 @@ impl MapradarClient {
         Ok(location)
     }
 
-    pub async fn _reverse_geocode(&self, lat: f64, lng: f64) -> Result<GeoLocation, GeoError> {
+    pub async fn reverse_geocode_async(&self, lat: f64, lng: f64) -> Result<GeoLocation, GeoError> {
         if let Some(cached) = self.cache.get_reverse_geocode(lat, lng).await {
             return Ok(cached);
         }
@@ -286,7 +298,7 @@ impl MapradarClient {
         Ok(location)
     }
 
-    pub async fn _search_nearby(
+    pub async fn search_nearby_async(
         &self,
         lat: f64,
         lng: f64,
@@ -377,7 +389,7 @@ impl MapradarClient {
         Ok(services)
     }
 
-    pub async fn _fetch_intelligence(
+    pub async fn fetch_intelligence_async(
         &self,
         query: SearchQuery,
         service_types: Vec<ServiceType>,
@@ -385,18 +397,18 @@ impl MapradarClient {
         max_results_per_type: usize,
     ) -> Result<LocationIntelligence, GeoError> {
         let location = match query {
-            SearchQuery::Address { address } => self._geocode(&address).await?,
+            SearchQuery::Address { address } => self.geocode_async(&address).await?,
             SearchQuery::Coordinates {
                 latitude,
                 longitude,
-            } => self._reverse_geocode(latitude, longitude).await?,
+            } => self.reverse_geocode_async(latitude, longitude).await?,
         };
 
         let radius_meters = radius_km * 1000.0;
         let mut futures = Vec::new();
 
         for &service_type in &service_types {
-            futures.push(self._search_nearby(
+            futures.push(self.search_nearby_async(
                 location.latitude,
                 location.longitude,
                 service_type,
