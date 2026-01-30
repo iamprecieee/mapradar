@@ -167,6 +167,183 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
+## API Reference
+
+### MapradarClient
+
+<details open>
+<summary><strong>Python</strong></summary>
+
+```python
+client = MapradarClient("YOUR_API_KEY")
+```
+
+#### Core Methods
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `geocode(address)` | `address: str` | `GeoLocation` |
+| `reverse_geocode(lat, lng)` | `latitude: float`, `longitude: float` | `GeoLocation` |
+| `search_nearby(...)` | `lat`, `lng`, `service_type`, `radius_meters`, `max_results` | `list[NearbyService]` |
+| `fetch_intelligence(...)` | `query`, `service_types`, `radius_km=5.0`, `max_results_per_type=5` | `LocationIntelligence` |
+
+#### JSON-RPC Methods
+
+| Method | Extra Parameter |
+|--------|-----------------|
+| `geocode_rpc(address, id?)` | `id: str = "1"` |
+| `reverse_geocode_rpc(lat, lng, id?)` | `id: str = "1"` |
+| `search_nearby_rpc(..., id?)` | `id: str = "1"` |
+| `fetch_intelligence_rpc(..., id?)` | `id: str = "1"` |
+
+</details>
+
+<details>
+<summary><strong>Rust</strong></summary>
+
+```rust
+let client = MapradarClient::new("YOUR_API_KEY".to_string());
+```
+
+#### Core Methods (async)
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `geocode_async(address)` | `address: &str` | `Result<GeoLocation, GeoError>` |
+| `reverse_geocode_async(lat, lng)` | `lat: f64`, `lng: f64` | `Result<GeoLocation, GeoError>` |
+| `search_nearby_async(...)` | `lat`, `lng`, `service_type`, `radius_meters`, `max_results` | `Result<Vec<NearbyService>, GeoError>` |
+| `fetch_intelligence_async(...)` | `query`, `service_types`, `radius_km`, `max_results_per_type` | `Result<LocationIntelligence, GeoError>` |
+
+#### RPC Helper
+
+| Method | Returns |
+|--------|---------|
+| `rpc_response(id, result)` | `JsonRpcResponse` |
+
+</details>
+
+---
+
+### SearchQuery
+
+<details open>
+<summary><strong>Python</strong></summary>
+
+| Constructor | Description |
+|-------------|-------------|
+| `SearchQuery.from_address(address)` | Create query from address string |
+| `SearchQuery.from_coordinates(lat, lng)` | Create query from coordinates |
+
+</details>
+
+<details>
+<summary><strong>Rust</strong></summary>
+
+| Constructor | Description |
+|-------------|-------------|
+| `SearchQuery::from_address(address: String)` | Create query from address string |
+| `SearchQuery::from_coordinates(lat: f64, lng: f64)` | Create query from coordinates |
+
+</details>
+
+---
+
+### Response Types
+
+<details open>
+<summary><strong>Python</strong></summary>
+
+#### GeoLocation
+
+| Field | Type |
+|-------|------|
+| `address` | `str` |
+| `latitude` | `float` |
+| `longitude` | `float` |
+| `city` | `str \| None` |
+| `state` | `str \| None` |
+| `country` | `str` |
+
+#### NearbyService
+
+| Field | Type |
+|-------|------|
+| `name` | `str` |
+| `service_type` | `ServiceType` |
+| `latitude` | `float` |
+| `longitude` | `float` |
+| `distance_km` | `float` |
+| `address` | `str \| None` |
+| `rating` | `float \| None` |
+| `place_id` | `str \| None` |
+
+#### LocationIntelligence
+
+| Field | Type |
+|-------|------|
+| `location` | `GeoLocation` |
+| `nearby_services` | `list[NearbyService]` |
+| `total_services_found` | `int` |
+
+#### JsonRpcResponse
+
+| Field | Type |
+|-------|------|
+| `jsonrpc` | `str` |
+| `result` | `str \| None` |
+| `error` | `JsonRpcError \| None` |
+| `id` | `str` |
+
+</details>
+
+<details>
+<summary><strong>Rust</strong></summary>
+
+#### GeoLocation
+
+| Field | Type |
+|-------|------|
+| `address` | `String` |
+| `latitude` | `f64` |
+| `longitude` | `f64` |
+| `city` | `Option<String>` |
+| `state` | `Option<String>` |
+| `country` | `String` |
+
+#### NearbyService
+
+| Field | Type |
+|-------|------|
+| `name` | `String` |
+| `service_type` | `ServiceType` |
+| `latitude` | `f64` |
+| `longitude` | `f64` |
+| `distance_km` | `f64` |
+| `address` | `Option<String>` |
+| `rating` | `Option<f32>` |
+| `place_id` | `Option<String>` |
+
+#### LocationIntelligence
+
+| Field | Type |
+|-------|------|
+| `location` | `GeoLocation` |
+| `nearby_services` | `Vec<NearbyService>` |
+| `total_services_found` | `usize` |
+
+#### JsonRpcResponse
+
+| Field | Type |
+|-------|------|
+| `jsonrpc` | `String` |
+| `result` | `Option<String>` |
+| `error` | `Option<JsonRpcError>` |
+| `id` | `String` |
+
+</details>
+
+---
+
 ## Configuration
 
 | Variable | Description |

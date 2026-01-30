@@ -1,6 +1,6 @@
 [package]
 name = "mapradar"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["iamprecieee"]
 description = "Turn addresses into coordinates and find nearby amenities using Google Maps API"
