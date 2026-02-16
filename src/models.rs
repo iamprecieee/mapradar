@@ -55,6 +55,8 @@ pub struct NearbyService {
     pub address: Option<String>,
     pub rating: Option<f32>,
     pub place_id: Option<String>,
+    pub phone_number: Option<String>,
+    pub open_now: Option<bool>,
 }
 
 /// Comprehensive intelligence about a location.

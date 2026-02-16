@@ -36,7 +36,7 @@ uv add mapradar
 
 ```toml
 [dependencies]
-mapradar = { version = "0.1", default-features = false }
+mapradar = { version = "0.2", default-features = false }
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -63,9 +63,54 @@ mapradar = { git = "https://github.com/iamprecieee/mapradar" }
 
 </details>
 
+<details open>
+<summary><strong>CLI Tool</strong></summary>
+
+Install the command-line tool globally:
+
+```bash
+cargo install mapradar
+```
+
+Or run from source:
+
+```bash
+cargo install --path .
+```
+
+</details>
+
 ---
 
 ## Usage
+
+### CLI
+
+Mapradar now comes with a powerful CLI for quick lookups.
+
+**Setup:**
+Create a `.env` file in your current directory with your API key:
+```bash
+MAPRADAR_API_KEY=your_api_key_here
+```
+
+**Commands:**
+
+*   **Geocode:**
+    ```bash
+    mapradar geocode "1600 Amphitheatre Parkway, Mountain View, CA"
+    ```
+
+*   **Reverse Geocode:**
+    ```bash
+    mapradar reverse 37.422 -122.084
+    ```
+
+*   **Nearby Search:**
+    ```bash
+    # Find banks and schools within 500m
+    mapradar nearby --lat 6.6018 --lng 3.3515 --radius 500 --type bank,school
+    ```
 
 ### Python
 
@@ -276,6 +321,8 @@ let client = MapradarClient::new("YOUR_API_KEY".to_string());
 | `address` | `str \| None` |
 | `rating` | `float \| None` |
 | `place_id` | `str \| None` |
+| `phone_number` | `str \| None` |
+| `open_now` | `bool \| None` |
 
 #### LocationIntelligence
 
@@ -322,6 +369,8 @@ let client = MapradarClient::new("YOUR_API_KEY".to_string());
 | `address` | `Option<String>` |
 | `rating` | `Option<f32>` |
 | `place_id` | `Option<String>` |
+| `phone_number` | `Option<String>` |
+| `open_now` | `Option<bool>` |
 
 #### LocationIntelligence
 

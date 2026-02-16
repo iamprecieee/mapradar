@@ -1,13 +1,13 @@
 [package]
 name = "mapradar"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 authors = ["iamprecieee"]
 description = "Turn addresses into coordinates and find nearby amenities using Google Maps API"
 license = "MIT"
 repository = "https://github.com/iamprecieee/mapradar"
 readme = "README.md"
-keywords = ["geocoding", "location", "maps", "places", "google-maps"]
+keywords = ["geocoding", "location", "maps", "places", "cli"]
 categories = ["api-bindings", "web-programming"]
 exclude = [
     "pyproject.toml",
@@ -35,6 +35,12 @@ moka = { version = "0.12", features = ["future"] }
 pyo3 = { version = "0.27.2", optional = true }
 pyo3-async-runtimes = { version = "0.27.0", features = ["tokio-runtime"], optional = true }
 tokio = { version = "1.49.0", features = ["full"] }
+clap = { version = "4.5.58", features = ["derive", "env"] }
+colored = "3.1.1"
+
+[[bin]]
+name = "mapradar"
+path = "src/main.rs"
 
 [features]
 default = ["python", "extension-module"]

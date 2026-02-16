@@ -216,6 +216,14 @@ impl super::MapradarClient {
                         .get("place_id")
                         .and_then(|p| p.as_str())
                         .map(|s| s.to_string()),
+                    phone_number: place
+                        .get("international_phone_number")
+                        .and_then(|p| p.as_str())
+                        .map(|s| s.to_string()),
+                    open_now: place
+                        .get("opening_hours")
+                        .and_then(|p| p.get("open_now"))
+                        .and_then(|p| p.as_bool()),
                 });
             }
         }
