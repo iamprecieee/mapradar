@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use colored::*;
 use mapradar::client::MapradarClient;
-use mapradar::models::{SearchQuery, ServiceType};
+use mapradar::models::{SearchQuery, ServiceType, TravelParameters};
 use std::process;
 
 #[derive(Parser)]
@@ -45,6 +45,27 @@ enum Commands {
         /// Maximum number of results to return per service
         #[arg(short, long, alias = "limit", default_value_t = 10)]
         max_results: usize,
+    },
+
+    /// Calculate travel distance between two points
+    Distance {
+        #[arg(long, help = "Origin address")]
+        origin_addr: Option<String>,
+
+        #[arg(long, help = "Origin latitude")]
+        origin_lat: Option<f64>,
+
+        #[arg(long, help = "Origin longitude")]
+        origin_lng: Option<f64>,
+
+        #[arg(long, help = "Destination address")]
+        dest_addr: Option<String>,
+
+        #[arg(long, help = "Destination latitude")]
+        dest_lat: Option<f64>,
+
+        #[arg(long, help = "Destination longitude")]
+        dest_lng: Option<f64>,
     },
 }
 
@@ -126,6 +147,31 @@ async fn main() {
                 .await
             {
                 Ok(intel) => println!("{}", serde_json::to_string_pretty(&intel).unwrap()),
+                Err(e) => {
+                    eprintln!("{} {}", "Error:".red().bold(), e);
+                    process::exit(1);
+                }
+            }
+        }
+        Commands::Distance {
+            origin_addr,
+            origin_lat,
+            origin_lng,
+            dest_addr,
+            dest_lat,
+            dest_lng,
+        } => {
+            let params = TravelParameters {
+                origin_latitude: origin_lat,
+                origin_longitude: origin_lng,
+                origin_address: origin_addr,
+                destination_latitude: dest_lat,
+                destination_longitude: dest_lng,
+                destination_address: dest_addr,
+            };
+
+            match client.calculate_travel_distance_async(params).await {
+                Ok(dist) => println!("{} {:.2} km", "Distance:".green().bold(), dist),
                 Err(e) => {
                     eprintln!("{} {}", "Error:".red().bold(), e);
                     process::exit(1);

@@ -4,17 +4,17 @@ use crate::error::GeoError;
 
 /// Calculate Haversine distance between two points in km.
 pub fn calculate_distance(
-    latitude_1: f64,
-    longitude_1: f64,
-    latitude_2: f64,
-    longitude_2: f64,
+    origin_latitude: f64,
+    origin_longitude: f64,
+    destination_latitude: f64,
+    destination_longitude: f64,
 ) -> f64 {
     let earth_radius = 6371.0;
 
-    let lat1_rad = latitude_1.to_radians();
-    let lat2_rad = latitude_2.to_radians();
-    let long1_rad = longitude_1.to_radians();
-    let long2_rad = longitude_2.to_radians();
+    let lat1_rad = origin_latitude.to_radians();
+    let lat2_rad = destination_latitude.to_radians();
+    let long1_rad = origin_longitude.to_radians();
+    let long2_rad = destination_longitude.to_radians();
 
     let latitude_difference = lat2_rad - lat1_rad;
     let longitude_difference = long2_rad - long1_rad;
