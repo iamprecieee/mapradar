@@ -37,6 +37,7 @@ pub mod utils;
 #[pymodule]
 fn mapradar(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<models::GeoLocation>()?;
+    m.add_class::<models::TravelParameters>()?;
     m.add_class::<models::ServiceType>()?;
     m.add_class::<models::NearbyService>()?;
     m.add_class::<models::LocationIntelligence>()?;

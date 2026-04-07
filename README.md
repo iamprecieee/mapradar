@@ -112,6 +112,15 @@ MAPRADAR_API_KEY=your_api_key_here
     mapradar nearby --lat 6.6018 --lng 3.3515 --radius 500 --type bank,school
     ```
 
+*   **Distance Calculation:**
+    ```bash
+    # Calculate travel distance between two addresses
+    mapradar distance --origin-addr "Shibuya Stay" --dest-addr "Shinjuku Station"
+
+    # Or use coordinates
+    mapradar distance --origin-lat 35.658 --origin-lng 139.701 --dest-lat 35.689 --dest-lng 139.692
+    ```
+
 ### Python
 
 ```python
@@ -121,6 +130,15 @@ from mapradar import MapradarClient, SearchQuery, ServiceType
 async def main():
     client = MapradarClient("YOUR_GOOGLE_MAPS_API_KEY")
     
+    # Calculate travel distance between two points
+    from mapradar import TravelParameters
+    params = TravelParameters(
+        origin_address="Shibuya, Tokyo",
+        destination_address="Shinjuku, Tokyo"
+    )
+    distance = await client.calculate_travel_distance(params)
+    print(f"Distance: {distance:.2f} km")
+
     # Find banks and hospitals near an address
     query = SearchQuery.from_address("Shibuya, Tokyo")
     intel = await client.fetch_intelligence(
@@ -188,6 +206,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | **Geocoding** | Convert addresses to coordinates |
 | **Reverse Geocoding** | Convert coordinates to addresses |
 | **Nearby Search** | Find banks, hospitals, schools, etc. |
+| **Distance Fetching** | Haversine distance with address fallthrough |
 | **Parallel Fetching** | Search multiple service types at once |
 | **Caching** | Automatic in-memory cache reduces API calls |
 | **JSON-RPC 2.0** | Built-in format for microservice APIs |
@@ -230,6 +249,7 @@ client = MapradarClient("YOUR_API_KEY")
 | `geocode(address)` | `address: str` | `GeoLocation` |
 | `reverse_geocode(lat, lng)` | `latitude: float`, `longitude: float` | `GeoLocation` |
 | `search_nearby(...)` | `lat`, `lng`, `service_type`, `radius_meters`, `max_results` | `list[NearbyService]` |
+| `calculate_travel_distance(params)` | `travel_params: TravelParameters` | `float` |
 | `fetch_intelligence(...)` | `query`, `service_types`, `radius_km=5.0`, `max_results_per_type=5` | `LocationIntelligence` |
 
 #### JSON-RPC Methods
@@ -240,6 +260,7 @@ client = MapradarClient("YOUR_API_KEY")
 | `reverse_geocode_rpc(lat, lng, id?)` | `id: str = "1"` |
 | `search_nearby_rpc(..., id?)` | `id: str = "1"` |
 | `fetch_intelligence_rpc(..., id?)` | `id: str = "1"` |
+| `calculate_travel_distance_rpc(params, id?)` | `id: str = "1"` |
 
 </details>
 
@@ -340,6 +361,17 @@ let client = MapradarClient::new("YOUR_API_KEY".to_string());
 | `result` | `str \| None` |
 | `error` | `JsonRpcError \| None` |
 | `id` | `str` |
+
+#### TravelParameters
+
+| Field | Type | Default |
+|-------|------|---------|
+| `origin_latitude` | `float \| None` | `None` |
+| `origin_longitude` | `float \| None` | `None` |
+| `origin_address` | `str \| None` | `None` |
+| `destination_latitude` | `float \| None` | `None` |
+| `destination_longitude` | `float \| None` | `None` |
+| `destination_address` | `str \| None` | `None` |
 
 </details>
 

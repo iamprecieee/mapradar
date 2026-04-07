@@ -26,6 +26,49 @@ impl GeoLocation {
     }
 }
 
+/// Represents travel parameters for distance calculation.
+#[cfg_attr(feature = "python", pyclass(get_all, set_all))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TravelParameters {
+    pub origin_latitude: Option<f64>,
+    pub origin_longitude: Option<f64>,
+    pub origin_address: Option<String>,
+    pub destination_latitude: Option<f64>,
+    pub destination_longitude: Option<f64>,
+    pub destination_address: Option<String>,
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl TravelParameters {
+    #[new]
+    #[pyo3(signature = (
+        origin_latitude=None,
+        origin_longitude=None,
+        origin_address=None,
+        destination_latitude=None,
+        destination_longitude=None,
+        destination_address=None,
+    ))]
+    pub fn py_new(
+        origin_latitude: Option<f64>,
+        origin_longitude: Option<f64>,
+        origin_address: Option<String>,
+        destination_latitude: Option<f64>,
+        destination_longitude: Option<f64>,
+        destination_address: Option<String>,
+    ) -> Self {
+        Self {
+            origin_latitude,
+            origin_longitude,
+            origin_address,
+            destination_latitude,
+            destination_longitude,
+            destination_address,
+        }
+    }
+}
+
 /// Supported amenity types for nearby search.
 #[cfg_attr(feature = "python", pyclass(eq, eq_int))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

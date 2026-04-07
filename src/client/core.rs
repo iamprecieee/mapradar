@@ -2,7 +2,7 @@ use crate::{
     error::GeoError,
     models::{
         GeoLocation, JsonRpcError, JsonRpcResponse, LocationIntelligence, NearbyService,
-        SearchQuery, ServiceType,
+        SearchQuery, ServiceType, TravelParameters,
     },
     utils::{calculate_distance, parse_address_components},
 };
@@ -276,5 +276,69 @@ impl super::MapradarClient {
         });
 
         Ok(LocationIntelligence::new(location, all_services))
+    }
+
+    pub async fn calculate_travel_distance_async(
+        &self,
+        travel_distance_params: TravelParameters,
+    ) -> Result<f64, GeoError> {
+        let (origin_latitude, origin_longitude) = match (
+            travel_distance_params.origin_latitude,
+            travel_distance_params.origin_longitude,
+        ) {
+            (Some(lat), Some(lng)) => (lat, lng),
+            (None, None) => {
+                if let Some(origin_addr) = travel_distance_params.origin_address {
+                    let location = self.geocode_async(&origin_addr).await?;
+                    (location.latitude, location.longitude)
+                } else {
+                    return Err(GeoError::ApiError {
+                        status: "INVALID_ORIGIN_PARAMETERS".to_string(),
+                        message: "Origin address or coordinates are required".to_string(),
+                    });
+                }
+            }
+            _ => {
+                return Err(GeoError::ApiError {
+                    status: "INVALID_ORIGIN_PARAMETERS".to_string(),
+                    message:
+                        "Both origin latitude and longitude are required when using coordinates"
+                            .to_string(),
+                });
+            }
+        };
+
+        let (destination_latitude, destination_longitude) = match (
+            travel_distance_params.destination_latitude,
+            travel_distance_params.destination_longitude,
+        ) {
+            (Some(lat), Some(lng)) => (lat, lng),
+            (None, None) => {
+                if let Some(destination_addr) = travel_distance_params.destination_address {
+                    let location = self.geocode_async(&destination_addr).await?;
+                    (location.latitude, location.longitude)
+                } else {
+                    return Err(GeoError::ApiError {
+                        status: "INVALID_DESTINATION_PARAMETERS".to_string(),
+                        message: "Destination address or coordinates are required".to_string(),
+                    });
+                }
+            }
+            _ => {
+                return Err(GeoError::ApiError {
+                    status: "INVALID_DESTINATION_PARAMETERS".to_string(),
+                    message: "Both destination latitude and longitude are required when using coordinates".to_string(),
+                });
+            }
+        };
+
+        let distance_km = calculate_distance(
+            origin_latitude,
+            origin_longitude,
+            destination_latitude,
+            destination_longitude,
+        );
+
+        Ok(distance_km)
     }
 }

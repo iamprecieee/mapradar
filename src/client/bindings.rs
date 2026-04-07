@@ -1,3 +1,5 @@
+#[cfg(feature = "python")]
+use crate::models::TravelParameters;
 use crate::models::{SearchQuery, ServiceType};
 
 #[cfg(feature = "python")]
@@ -50,6 +52,21 @@ impl super::MapradarClient {
                 .search_nearby_async(lat, lng, service_type, radius_meters, max_results)
                 .await?;
             Ok(services)
+        })
+    }
+
+    /// Fetches travel distance between two geographic points.
+    pub fn calculate_travel_distance<'py>(
+        &self,
+        py: Python<'py>,
+        travel_params: TravelParameters,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let distance = client
+                .calculate_travel_distance_async(travel_params)
+                .await?;
+            Ok(distance)
         })
     }
 
@@ -141,6 +158,21 @@ impl super::MapradarClient {
             let result = client
                 .fetch_intelligence_async(query, service_types, radius_km, max_results_per_type)
                 .await;
+            Ok(client.rpc_response(id, result))
+        })
+    }
+
+    /// Fetches travel distance in JSON-RPC 2.0 format.
+    #[pyo3(signature = (travel_params, id="1".to_string()))]
+    pub fn calculate_travel_distance_rpc<'py>(
+        &self,
+        py: Python<'py>,
+        travel_params: TravelParameters,
+        id: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result = client.calculate_travel_distance_async(travel_params).await;
             Ok(client.rpc_response(id, result))
         })
     }
