@@ -4,7 +4,7 @@ use crate::cache::GeoCache;
 use pyo3::prelude::*;
 
 /// Client for interacting with Google Maps APIs with built-in caching.
-#[cfg_attr(feature = "python", pyclass)]
+#[cfg_attr(feature = "python", pyclass(from_py_object))]
 #[derive(Clone)]
 pub struct MapradarClient {
     api_key: String,

@@ -22,8 +22,8 @@ impl super::MapradarClient {
     ) -> JsonRpcResponse {
         match result {
             Ok(data) => {
-                let result_json = serde_json::to_string(&data).unwrap_or_default();
-                JsonRpcResponse::new(id, Some(result_json), None)
+                let result_val = serde_json::to_value(&data).unwrap_or_default();
+                JsonRpcResponse::new(id, Some(result_val), None)
             }
             Err(err) => {
                 let rpc_err = JsonRpcError::new(err.json_rpc_code(), err.to_string(), None);
@@ -145,13 +145,13 @@ impl super::MapradarClient {
     ) -> Result<Vec<NearbyService>, GeoError> {
         if let Some(cached) = self
             .cache
-            .get_nearby(lat, lng, service_type, radius_meters)
+            .get_nearby(lat, lng, service_type, radius_meters, max_results)
             .await
         {
             return Ok(cached.into_iter().take(max_results).collect());
         }
 
-        let url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+        let url = "https://places.googleapis.com/v1/places:searchNearby";
         let google_type = match service_type {
             ServiceType::BusStop => "bus_station",
             ServiceType::Market => "supermarket",
@@ -166,25 +166,35 @@ impl super::MapradarClient {
             ServiceType::Landmark => "tourist_attraction",
         };
 
+        let body = serde_json::json!({
+            "includedTypes": [google_type],
+            "maxResultCount": max_results,
+            "locationRestriction": {
+                "circle": {
+                    "center": {
+                        "latitude": lat,
+                        "longitude": lng
+                    },
+                    "radius": radius_meters
+                }
+            }
+        });
+
         let response = self
             .http_client
-            .get(url)
-            .query(&[
-                ("location", format!("{},{}", lat, lng)),
-                ("radius", radius_meters.to_string()),
-                ("type", google_type.to_string()),
-                ("key", self.api_key.clone()),
-            ])
+            .post(url)
+            .header("X-Goog-Api-Key", &self.api_key)
+            .header("X-Goog-FieldMask", "places.displayName.text,places.location.latitude,places.location.longitude,places.formattedAddress,places.rating,places.id,places.nationalPhoneNumber,places.regularOpeningHours.openNow")
+            .json(&body)
             .send()
             .await?;
 
         let data: Value = response.json().await?;
-        let status = data["status"].as_str().unwrap_or("UNKNOWN");
 
-        if status != "OK" && status != "ZERO_RESULTS" {
+        if let Some(error) = data.get("error") {
             return Err(GeoError::ApiError {
-                status: status.to_string(),
-                message: data["error_message"]
+                status: error["status"].as_str().unwrap_or("UNKNOWN").to_string(),
+                message: error["message"]
                     .as_str()
                     .unwrap_or("Places API search failed")
                     .to_string(),
@@ -192,44 +202,52 @@ impl super::MapradarClient {
         }
 
         let mut services = Vec::new();
-        if let Some(results) = data["results"].as_array() {
-            for place in results.iter().take(max_results) {
-                let loc = &place["geometry"]["location"];
-                let p_lat = loc["lat"].as_f64().unwrap_or_default();
-                let p_lng = loc["lng"].as_f64().unwrap_or_default();
+        if let Some(places) = data
+            .get("places")
+            .and_then(|place_list| place_list.as_array())
+        {
+            for place in places.iter().take(max_results) {
+                let loc = &place["location"];
+                let p_lat = loc["latitude"].as_f64().unwrap_or_default();
+                let p_lng = loc["longitude"].as_f64().unwrap_or_default();
 
                 services.push(NearbyService {
-                    name: place["name"].as_str().unwrap_or("Unknown").to_string(),
+                    name: place
+                        .get("displayName")
+                        .and_then(|display_name| display_name.get("text"))
+                        .and_then(|text_val| text_val.as_str())
+                        .unwrap_or("Unknown")
+                        .to_string(),
                     service_type,
                     latitude: p_lat,
                     longitude: p_lng,
                     distance_km: calculate_distance(lat, lng, p_lat, p_lng),
                     address: place
-                        .get("vicinity")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
+                        .get("formattedAddress")
+                        .and_then(|addr_val| addr_val.as_str())
+                        .map(|addr_str| addr_str.to_string()),
                     rating: place
                         .get("rating")
-                        .and_then(|r| r.as_f64())
-                        .map(|f| f as f32),
+                        .and_then(|rating_val| rating_val.as_f64())
+                        .map(|float_val| float_val as f32),
                     place_id: place
-                        .get("place_id")
-                        .and_then(|p| p.as_str())
-                        .map(|s| s.to_string()),
+                        .get("id")
+                        .and_then(|id_val| id_val.as_str())
+                        .map(|id_str| id_str.to_string()),
                     phone_number: place
-                        .get("international_phone_number")
-                        .and_then(|p| p.as_str())
-                        .map(|s| s.to_string()),
+                        .get("nationalPhoneNumber")
+                        .and_then(|phone_val| phone_val.as_str())
+                        .map(|phone_str| phone_str.to_string()),
                     open_now: place
-                        .get("opening_hours")
-                        .and_then(|p| p.get("open_now"))
-                        .and_then(|p| p.as_bool()),
+                        .get("regularOpeningHours")
+                        .and_then(|hours_val| hours_val.get("openNow"))
+                        .and_then(|open_val| open_val.as_bool()),
                 });
             }
         }
 
         self.cache
-            .set_nearby(lat, lng, service_type, radius_meters, services.clone())
+            .set_nearby(lat, lng, service_type, radius_meters, max_results, services.clone())
             .await;
         Ok(services)
     }
@@ -265,13 +283,24 @@ impl super::MapradarClient {
         let results = futures::future::join_all(futures).await;
 
         let mut all_services = Vec::new();
-        for services in results.into_iter().flatten() {
-            all_services.extend(services);
+        let mut errors = Vec::new();
+
+        for result in results {
+            match result {
+                Ok(services) => all_services.extend(services),
+                Err(err) => errors.push(err),
+            }
         }
 
-        all_services.sort_by(|a, b| {
-            a.distance_km
-                .partial_cmp(&b.distance_km)
+        if all_services.is_empty() && !errors.is_empty() {
+            // All requests failed or yielded nothing because of an error
+            return Err(errors.into_iter().next().unwrap());
+        }
+
+        all_services.sort_by(|service_a, service_b| {
+            service_a
+                .distance_km
+                .partial_cmp(&service_b.distance_km)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
@@ -332,13 +361,67 @@ impl super::MapradarClient {
             }
         };
 
-        let distance_km = calculate_distance(
-            origin_latitude,
-            origin_longitude,
-            destination_latitude,
-            destination_longitude,
-        );
+        let url = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
-        Ok(distance_km)
+        let travel_mode_api = travel_distance_params
+            .travel_mode
+            .unwrap_or_else(|| "DRIVE".to_string());
+
+        let body = serde_json::json!({
+            "origin": {
+                "location": {
+                    "latLng": {
+                        "latitude": origin_latitude,
+                        "longitude": origin_longitude
+                    }
+                }
+            },
+            "destination": {
+                "location": {
+                    "latLng": {
+                        "latitude": destination_latitude,
+                        "longitude": destination_longitude
+                    }
+                }
+            },
+            "travelMode": travel_mode_api
+        });
+
+        let response = self
+            .http_client
+            .post(url)
+            .header("X-Goog-Api-Key", &self.api_key)
+            .header("X-Goog-FieldMask", "routes.distanceMeters")
+            .json(&body)
+            .send()
+            .await?;
+
+        let data: Value = response.json().await?;
+
+        if let Some(error) = data.get("error") {
+            return Err(GeoError::ApiError {
+                status: error["status"].as_str().unwrap_or("UNKNOWN").to_string(),
+                message: error["message"]
+                    .as_str()
+                    .unwrap_or("Routes API failed")
+                    .to_string(),
+            });
+        }
+
+        if let Some(routes) = data
+            .get("routes")
+            .and_then(|route_list| route_list.as_array())
+            && let Some(route) = routes.first()
+                && let Some(distance) = route.get("distanceMeters").and_then(|dist_val| {
+                    dist_val
+                        .as_f64()
+                        .or_else(|| dist_val.as_u64().map(|unsigned_val| unsigned_val as f64))
+                }) {
+                    return Ok(distance / 1000.0);
+                }
+
+        Err(GeoError::Unknown(
+            "Could not compute travel distance between these locations".to_string(),
+        ))
     }
 }
