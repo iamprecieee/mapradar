@@ -50,10 +50,10 @@ impl GeoCache {
     }
 
     /// Generates cache key for nearby search requests.
-    fn nearby_key(lat: f64, lng: f64, service_type: ServiceType, radius_meters: f64) -> String {
+    fn nearby_key(lat: f64, lng: f64, service_type: ServiceType, radius_meters: f64, max_results: usize) -> String {
         format!(
-            "{:.4},{:.4}:{:?}:{:.0}",
-            lat, lng, service_type, radius_meters
+            "{:.4},{:.4}:{:?}:{:.0}:{}",
+            lat, lng, service_type, radius_meters, max_results
         )
     }
 
@@ -90,9 +90,10 @@ impl GeoCache {
         lng: f64,
         service_type: ServiceType,
         radius_meters: f64,
+        max_results: usize,
     ) -> Option<Vec<NearbyService>> {
         self.nearby
-            .get(&Self::nearby_key(lat, lng, service_type, radius_meters))
+            .get(&Self::nearby_key(lat, lng, service_type, radius_meters, max_results))
             .await
     }
 
@@ -103,11 +104,12 @@ impl GeoCache {
         lng: f64,
         service_type: ServiceType,
         radius_meters: f64,
+        max_results: usize,
         services: Vec<NearbyService>,
     ) {
         self.nearby
             .insert(
-                Self::nearby_key(lat, lng, service_type, radius_meters),
+                Self::nearby_key(lat, lng, service_type, radius_meters, max_results),
                 services,
             )
             .await;
