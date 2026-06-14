@@ -66,6 +66,13 @@ enum Commands {
 
         #[arg(long, help = "Destination longitude")]
         dest_lng: Option<f64>,
+
+        #[arg(
+            long,
+            help = "Mode of travel (drive, walk, bicycle, motorcycle, transit)",
+            default_value = "drive"
+        )]
+        mode: String,
     },
 }
 
@@ -79,8 +86,8 @@ async fn main() {
     match cli.command {
         Commands::Geocode { address } => match client.geocode_async(&address).await {
             Ok(loc) => println!("{}", serde_json::to_string_pretty(&loc).unwrap()),
-            Err(e) => {
-                eprintln!("{} {}", "Error:".red().bold(), e);
+            Err(err) => {
+                eprintln!("{} {}", "Error:".red().bold(), err);
                 process::exit(1);
             }
         },
@@ -88,9 +95,9 @@ async fn main() {
             latitude,
             longitude,
         } => match client.reverse_geocode_async(latitude, longitude).await {
-            Ok(address) => println!("{:?}", address),
-            Err(e) => {
-                eprintln!("{} {}", "Error:".red().bold(), e);
+            Ok(address) => println!("{}", serde_json::to_string_pretty(&address).unwrap()),
+            Err(err) => {
+                eprintln!("{} {}", "Error:".red().bold(), err);
                 process::exit(1);
             }
         },
@@ -104,7 +111,7 @@ async fn main() {
         } => {
             let service_types = r#type
                 .split(",")
-                .map(|s| match s.trim() {
+                .map(|type_str| match type_str.trim() {
                     "bank" => ServiceType::Bank,
                     "hospital" => ServiceType::Hospital,
                     "school" => ServiceType::School,
@@ -143,12 +150,12 @@ async fn main() {
             };
 
             match client
-                .fetch_intelligence_async(query, service_types, radius, max_results)
+                .fetch_intelligence_async(query, service_types, radius / 1000.0, max_results)
                 .await
             {
                 Ok(intel) => println!("{}", serde_json::to_string_pretty(&intel).unwrap()),
-                Err(e) => {
-                    eprintln!("{} {}", "Error:".red().bold(), e);
+                Err(err) => {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
                     process::exit(1);
                 }
             }
@@ -160,7 +167,16 @@ async fn main() {
             dest_addr,
             dest_lat,
             dest_lng,
+            mode,
         } => {
+            let api_mode = match mode.to_lowercase().as_str() {
+                "walk" | "walking" => "WALK",
+                "bicycle" => "BICYCLE",
+                "motorcycle" | "bike" | "okada" | "keke" => "TWO_WHEELER",
+                "transit" | "train" | "bus" | "brt" | "danfo" => "TRANSIT",
+                _ => "DRIVE",
+            };
+
             let params = TravelParameters {
                 origin_latitude: origin_lat,
                 origin_longitude: origin_lng,
@@ -168,12 +184,13 @@ async fn main() {
                 destination_latitude: dest_lat,
                 destination_longitude: dest_lng,
                 destination_address: dest_addr,
+                travel_mode: Some(api_mode.to_string()),
             };
 
             match client.calculate_travel_distance_async(params).await {
                 Ok(dist) => println!("{} {:.2} km", "Distance:".green().bold(), dist),
-                Err(e) => {
-                    eprintln!("{} {}", "Error:".red().bold(), e);
+                Err(err) => {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
                     process::exit(1);
                 }
             }
