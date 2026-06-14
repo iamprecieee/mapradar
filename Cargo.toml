@@ -43,7 +43,7 @@ name = "mapradar"
 path = "src/main.rs"
 
 [features]
-default = ["python", "extension-module"]
+default = []
 python = ["dep:pyo3", "dep:pyo3-async-runtimes"]
 extension-module = ["python", "pyo3/extension-module"]
 
