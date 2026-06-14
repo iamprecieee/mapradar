@@ -5,21 +5,17 @@
 ```bash
 git clone https://github.com/iamprecieee/mapradar
 cd mapradar
-uv venv
-source .venv/bin/activate
-uv add maturin
-maturin develop
+cargo test --no-default-features
 ```
 
 ## Development
 
 | Command | Purpose |
 |---------|---------|
-| `cargo build` | Compile Rust code |
-| `cargo test` | Run Rust unit tests |
-| `cargo clippy` | Lint Rust code |
-| `cargo fmt` | Format Rust code |
-| `maturin develop` | Build and install Python bindings |
+| `cargo build` | Compile |
+| `cargo test` | Run tests |
+| `cargo clippy` | Check style |
+| `cargo fmt` | Format code |
 
 ## Pull Requests
 
@@ -31,10 +27,10 @@ maturin develop
 
 ## Code Style
 
-- Use `cargo fmt` before committing
-- Handle errors explicitly with `Result` types
-- Add doc comments for public APIs
-- Keep functions focused and under 40 lines
+- Use project formatter
+- Handle errors explicitly
+- Add comments for complex logic
+- Keep functions focused
 
 ## Commit Messages
 

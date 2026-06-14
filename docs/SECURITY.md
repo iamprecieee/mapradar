@@ -2,21 +2,20 @@
 
 ## Threat Model
 
-Mapradar is a location intelligence library that interacts with external APIs. It protects **API credentials** and ensures **data integrity** for developers building location-based applications.
+Mapradar protects API keys and ensures secure RPC communication for location intelligence.
 
 ### In Scope
 
 | Threat | Protection |
 |--------|------------|
-| API key exposure | Keys stored in environment variables, never logged |
-| Invalid API responses | Structured error handling prevents crashes |
-| Data injection | All inputs validated before API calls |
+| API Key Leakage | No keys are hardcoded; environment variables required |
+| Network Sniffing | HTTPS is used for all Google Maps API requests |
 
 ### Out of Scope
 
-- Google Maps API security (managed by Google)
-- Network-level attacks (MITM, DNS spoofing)
-- Physical access to development machines
+- Root/administrator access
+- Physical access attacks
+- Social engineering
 
 ---
 
@@ -24,22 +23,20 @@ Mapradar is a location intelligence library that interacts with external APIs. I
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| HTTP Client | `reqwest` with TLS | Industry-standard secure HTTP |
-| Error Handling | `thiserror` | Type-safe error propagation |
-| Async Runtime | `tokio` | Non-blocking I/O for performance |
+| Transport | HTTPS via reqwest | Secures API requests to external providers |
+| Storage | In-memory Cache (Moka) | Fast and prevents persistent data leakage |
 
 ---
 
 ## Known Limitations
 
-1. API keys must be stored securely by the user (use `envcipher` or similar)
-2. Rate limiting depends on Google Maps API quotas
+1. API keys are sent over HTTPS to Google Maps but reside in memory during execution.
 
 ---
 
 ## Vulnerability Disclosure
 
-**Email:** security@example.com
+**Email:** emmypresh777@gmail.com
 
 Do not file public issues for security vulnerabilities.
 
@@ -55,9 +52,6 @@ Do not file public issues for security vulnerabilities.
 
 | Library | Purpose |
 |---------|---------|
-| `reqwest` | HTTP client with TLS |
-| `serde` / `serde_json` | JSON serialization |
-| `thiserror` | Error type definitions |
-| `pyo3` | Python bindings |
+| reqwest | HTTP client |
 
-Advisories tracked via `cargo audit`.
+Advisories tracked via `cargo-audit`.
