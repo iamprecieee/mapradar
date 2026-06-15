@@ -2,6 +2,13 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.2] - 2026-06-15
+
+### Fixed
+- Enabled `abi3-v39` for `pyo3` to build universal Python wheels for PyPI (compatible with Python 3.9+)
+
+---
+
 ## [0.4.1] - 2026-06-15
 
 ### Added

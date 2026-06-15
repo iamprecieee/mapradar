@@ -1,6 +1,6 @@
 [package]
 name = "mapradar"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 authors = ["iamprecieee"]
 description = "Turn addresses into coordinates and find nearby amenities using Google Maps API"
@@ -45,7 +45,7 @@ path = "src/main.rs"
 [features]
 default = []
 python = ["dep:pyo3", "dep:pyo3-async-runtimes"]
-extension-module = ["python", "pyo3/extension-module"]
+extension-module = ["python", "pyo3/extension-module", "pyo3/abi3-py39"]
 
 [dev-dependencies]
 tokio-test = "0.4.5"

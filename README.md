@@ -21,7 +21,7 @@ uv add mapradar
 **Rust**
 ```toml
 [dependencies]
-mapradar = "0.4.1"
+mapradar = "0.4.2"
 tokio = { version = "1", features = ["full"] }
 ```
 

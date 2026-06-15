@@ -256,7 +256,9 @@ impl JsonRpcResponse {
 
     #[getter]
     pub fn get_result(&self) -> Option<String> {
-        self.result.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default())
+        self.result
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_default())
     }
 
     #[setter]
@@ -304,7 +306,7 @@ mod tests {
         let result_val = serde_json::to_value(&loc).unwrap();
         let rpc = JsonRpcResponse::new("test-123".to_string(), Some(result_val), None);
         let json_str = serde_json::to_string(&rpc).unwrap();
-        
+
         // Assert that the result contains actual JSON and not stringified JSON (no double encoding)
         assert!(json_str.contains(r#""result":{"address":"123 Main St""#));
         // Ensure there's no double quoting: "result":"{\"address\":...}"
