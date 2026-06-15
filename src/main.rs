@@ -123,6 +123,7 @@ async fn main() {
                     "train-station" => ServiceType::TrainStation,
                     "taxi-stand" => ServiceType::TaxiStand,
                     "landmark" => ServiceType::Landmark,
+                    "pharmacy" => ServiceType::Pharmacy,
                     _ => ServiceType::Landmark, // Default fallback
                 })
                 .collect::<Vec<ServiceType>>();

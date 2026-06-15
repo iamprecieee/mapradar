@@ -88,6 +88,7 @@ pub enum ServiceType {
     TrainStation,
     TaxiStand,
     Landmark,
+    Pharmacy,
 }
 
 /// Represents a specific amenity found near a location.

@@ -164,6 +164,7 @@ impl super::MapradarClient {
             ServiceType::TrainStation => "train_station",
             ServiceType::TaxiStand => "taxi_stand",
             ServiceType::Landmark => "tourist_attraction",
+            ServiceType::Pharmacy => "pharmacy",
         };
 
         let body = serde_json::json!({
@@ -247,7 +248,14 @@ impl super::MapradarClient {
         }
 
         self.cache
-            .set_nearby(lat, lng, service_type, radius_meters, max_results, services.clone())
+            .set_nearby(
+                lat,
+                lng,
+                service_type,
+                radius_meters,
+                max_results,
+                services.clone(),
+            )
             .await;
         Ok(services)
     }
@@ -363,9 +371,24 @@ impl super::MapradarClient {
 
         let url = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
-        let travel_mode_api = travel_distance_params
+        let raw_mode = travel_distance_params
             .travel_mode
-            .unwrap_or_else(|| "DRIVE".to_string());
+            .unwrap_or_else(|| "DRIVE".to_string())
+            .to_uppercase();
+
+        let travel_mode_api = match raw_mode.as_str() {
+            // Two-wheelers and three-wheelers
+            "OKADA" | "KEKE" | "MOTORCYCLE" | "AUTO" | "RICKSHAW" | "TUKTUK" | "OJEK" | "BAJAJ"
+            | "BECAK" => "TWO_WHEELER",
+            // Transit vehicles
+            "DANFO" | "BRT" | "ANGKOT" | "BUSWAY" | "METRO" | "LOCAL_TRAIN" => "TRANSIT",
+            "WALK" => "WALK",
+            "BICYCLE" => "BICYCLE",
+            "DRIVE" => "DRIVE",
+            "TRANSIT" => "TRANSIT",
+            "TWO_WHEELER" => "TWO_WHEELER",
+            _ => &raw_mode,
+        };
 
         let body = serde_json::json!({
             "origin": {
@@ -412,13 +435,14 @@ impl super::MapradarClient {
             .get("routes")
             .and_then(|route_list| route_list.as_array())
             && let Some(route) = routes.first()
-                && let Some(distance) = route.get("distanceMeters").and_then(|dist_val| {
-                    dist_val
-                        .as_f64()
-                        .or_else(|| dist_val.as_u64().map(|unsigned_val| unsigned_val as f64))
-                }) {
-                    return Ok(distance / 1000.0);
-                }
+            && let Some(distance) = route.get("distanceMeters").and_then(|dist_val| {
+                dist_val
+                    .as_f64()
+                    .or_else(|| dist_val.as_u64().map(|unsigned_val| unsigned_val as f64))
+            })
+        {
+            return Ok(distance / 1000.0);
+        }
 
         Err(GeoError::Unknown(
             "Could not compute travel distance between these locations".to_string(),

@@ -2,6 +2,16 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.1] - 2026-06-15
+
+### Added
+- International transit mode support for India and Indonesia (`auto`, `rickshaw`, `tuktuk`, `ojek`, `bajaj`, `becak`, `angkot`, `busway`, `metro`, `local_train`)
+
+### Fixed
+- Fixed bug where `ServiceType::Pharmacy` was missing from parsing, which caused `--type pharmacy` queries to fallback to landmarks (`tourist_attraction`)
+
+---
+
 ## [0.4.0] - 2026-06-14
 
 ### BREAKING CHANGES
