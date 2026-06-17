@@ -289,6 +289,40 @@ impl JsonRpcResponse {
     }
 }
 
+/// Represents a geographic point with an optional label and distance, useful for geofencing.
+#[cfg_attr(feature = "python", pyclass(get_all, set_all, from_py_object))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeoPoint {
+    pub latitude: f64,
+    pub longitude: f64,
+    pub label: Option<String>,
+    pub distance_km: Option<f64>,
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl GeoPoint {
+    #[new]
+    #[pyo3(signature = (latitude, longitude, label=None, distance_km=None))]
+    pub fn py_new(latitude: f64, longitude: f64, label: Option<String>, distance_km: Option<f64>) -> Self {
+        Self {
+            latitude,
+            longitude,
+            label,
+            distance_km,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        let label_str = self.label.as_deref().unwrap_or("Unnamed");
+        if let Some(dist) = self.distance_km {
+            format!("GeoPoint(label='{}', lat={}, lon={}, distance_km={:.2})", label_str, self.latitude, self.longitude, dist)
+        } else {
+            format!("GeoPoint(label='{}', lat={}, lon={})", label_str, self.latitude, self.longitude)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

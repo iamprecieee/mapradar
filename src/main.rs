@@ -74,6 +74,30 @@ enum Commands {
         )]
         mode: String,
     },
+
+    /// Filter and sort points within a radius of a center location
+    WithinRadius {
+        #[arg(long, help = "Center latitude (optional if center-address is provided)")]
+        lat: Option<f64>,
+
+        #[arg(long, help = "Center longitude (optional if center-address is provided)")]
+        lng: Option<f64>,
+
+        #[arg(long, short, help = "Center address (optional if lat/lng are provided)")]
+        address: Option<String>,
+
+        #[arg(long, help = "Target latitude (optional if target-address is provided)")]
+        target_lat: Option<f64>,
+
+        #[arg(long, help = "Target longitude (optional if target-address is provided)")]
+        target_lng: Option<f64>,
+
+        #[arg(long, help = "Target address (optional if target lat/lng are provided)")]
+        target_address: Option<String>,
+
+        #[arg(short, long, help = "Radius in kilometers")]
+        radius: f64,
+    },
 }
 
 #[tokio::main]
@@ -194,6 +218,66 @@ async fn main() {
                     eprintln!("{} {}", "Error:".red().bold(), err);
                     process::exit(1);
                 }
+            }
+        }
+        Commands::WithinRadius {
+            lat,
+            lng,
+            address,
+            target_lat,
+            target_lng,
+            target_address,
+            radius,
+        } => {
+            let (c_lat, c_lng) = if let (Some(la), Some(lo)) = (lat, lng) {
+                (la, lo)
+            } else if let Some(addr) = address {
+                let loc = client.geocode_async(&addr).await.unwrap_or_else(|e| {
+                    eprintln!("{} {}", "Error geocoding center address:".red().bold(), e);
+                    process::exit(1);
+                });
+                (loc.latitude, loc.longitude)
+            } else {
+                eprintln!(
+                    "{} Either center lat/lng or address must be provided",
+                    "Error:".red().bold()
+                );
+                process::exit(1);
+            };
+
+            let (t_lat, t_lng) = if let (Some(la), Some(lo)) = (target_lat, target_lng) {
+                (la, lo)
+            } else if let Some(addr) = target_address {
+                let loc = client.geocode_async(&addr).await.unwrap_or_else(|e| {
+                    eprintln!("{} {}", "Error geocoding target address:".red().bold(), e);
+                    process::exit(1);
+                });
+                (loc.latitude, loc.longitude)
+            } else {
+                eprintln!(
+                    "{} Either target lat/lng or address must be provided",
+                    "Error:".red().bold()
+                );
+                process::exit(1);
+            };
+
+            let within = mapradar::utils::is_within_radius(t_lat, t_lng, c_lat, c_lng, radius);
+            let dist = mapradar::utils::calculate_distance(c_lat, c_lng, t_lat, t_lng);
+
+            if within {
+                println!(
+                    "{} Target is {:.2} km away (within {} km radius)",
+                    "YES:".green().bold(),
+                    dist,
+                    radius
+                );
+            } else {
+                println!(
+                    "{} Target is {:.2} km away (outside {} km radius)",
+                    "NO:".red().bold(),
+                    dist,
+                    radius
+                );
             }
         }
     }
