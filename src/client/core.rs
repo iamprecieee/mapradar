@@ -448,4 +448,28 @@ impl super::MapradarClient {
             "Could not compute travel distance between these locations".to_string(),
         ))
     }
+
+    pub async fn score_location_async(
+        &self,
+        query: SearchQuery,
+        radius_km: f64,
+    ) -> Result<crate::models::LocationScore, GeoError> {
+        let all_types = vec![
+            ServiceType::Bank,
+            ServiceType::Hospital,
+            ServiceType::School,
+            ServiceType::Restaurant,
+            ServiceType::Market,
+            ServiceType::Mall,
+            ServiceType::Pharmacy,
+            ServiceType::BusStop,
+            ServiceType::FuelStation,
+        ];
+
+        let intel = self
+            .fetch_intelligence_async(query, all_types, radius_km, 20)
+            .await?;
+
+        Ok(crate::scoring::compute_location_score(&intel, radius_km))
+    }
 }

@@ -75,7 +75,7 @@ impl TravelParameters {
 
 /// Supported amenity types for nearby search.
 #[cfg_attr(feature = "python", pyclass(eq, eq_int, from_py_object))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ServiceType {
     BusStop,
     Market,
@@ -304,7 +304,12 @@ pub struct GeoPoint {
 impl GeoPoint {
     #[new]
     #[pyo3(signature = (latitude, longitude, label=None, distance_km=None))]
-    pub fn py_new(latitude: f64, longitude: f64, label: Option<String>, distance_km: Option<f64>) -> Self {
+    pub fn py_new(
+        latitude: f64,
+        longitude: f64,
+        label: Option<String>,
+        distance_km: Option<f64>,
+    ) -> Self {
         Self {
             latitude,
             longitude,
@@ -316,10 +321,57 @@ impl GeoPoint {
     fn __repr__(&self) -> String {
         let label_str = self.label.as_deref().unwrap_or("Unnamed");
         if let Some(dist) = self.distance_km {
-            format!("GeoPoint(label='{}', lat={}, lon={}, distance_km={:.2})", label_str, self.latitude, self.longitude, dist)
+            format!(
+                "GeoPoint(label='{}', lat={}, lon={}, distance_km={:.2})",
+                label_str, self.latitude, self.longitude, dist
+            )
         } else {
-            format!("GeoPoint(label='{}', lat={}, lon={})", label_str, self.latitude, self.longitude)
+            format!(
+                "GeoPoint(label='{}', lat={}, lon={})",
+                label_str, self.latitude, self.longitude
+            )
         }
+    }
+}
+
+#[cfg_attr(feature = "python", pyclass(get_all, set_all, from_py_object))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryScore {
+    pub category: String,
+    pub score: f64,
+    pub nearest_distance_km: f64,
+    pub count_within_radius: usize,
+    pub average_rating: Option<f64>,
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl CategoryScore {
+    fn __repr__(&self) -> String {
+        format!(
+            "CategoryScore(category='{}', score={:.1}, count={}, nearest={:.2}km)",
+            self.category, self.score, self.count_within_radius, self.nearest_distance_km
+        )
+    }
+}
+
+#[cfg_attr(feature = "python", pyclass(get_all, set_all, from_py_object))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationScore {
+    pub overall_score: f64,
+    pub breakdown: Vec<CategoryScore>,
+    pub location: GeoLocation,
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl LocationScore {
+    fn __repr__(&self) -> String {
+        format!(
+            "LocationScore(overall={:.1}, categories={})",
+            self.overall_score,
+            self.breakdown.len()
+        )
     }
 }
 

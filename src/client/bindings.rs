@@ -176,4 +176,35 @@ impl super::MapradarClient {
             Ok(client.rpc_response(id, result))
         })
     }
+
+    /// Computes a composite location score based on nearby amenities.
+    #[pyo3(signature = (query, radius_km=5.0))]
+    pub fn score_location<'py>(
+        &self,
+        py: Python<'py>,
+        query: SearchQuery,
+        radius_km: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let score = client.score_location_async(query, radius_km).await?;
+            Ok(score)
+        })
+    }
+
+    /// Computes a composite location score in JSON-RPC 2.0 format.
+    #[pyo3(signature = (query, radius_km=5.0, id="1".to_string()))]
+    pub fn score_location_rpc<'py>(
+        &self,
+        py: Python<'py>,
+        query: SearchQuery,
+        radius_km: f64,
+        id: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result = client.score_location_async(query, radius_km).await;
+            Ok(client.rpc_response(id, result))
+        })
+    }
 }

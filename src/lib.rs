@@ -31,6 +31,7 @@ pub mod cache;
 pub mod client;
 pub mod error;
 pub mod models;
+pub mod scoring;
 pub mod utils;
 
 #[cfg(feature = "python")]
@@ -79,11 +80,13 @@ fn mapradar(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<models::JsonRpcError>()?;
     m.add_class::<models::JsonRpcResponse>()?;
     m.add_class::<models::GeoPoint>()?;
+    m.add_class::<models::CategoryScore>()?;
+    m.add_class::<models::LocationScore>()?;
     m.add_class::<client::MapradarClient>()?;
-    
+
     m.add_function(wrap_pyfunction!(is_within_radius, m)?)?;
     m.add_function(wrap_pyfunction!(filter_within_radius, m)?)?;
     m.add_function(wrap_pyfunction!(sort_by_distance, m)?)?;
-    
+
     Ok(())
 }

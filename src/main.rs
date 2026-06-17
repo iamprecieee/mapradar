@@ -77,25 +77,68 @@ enum Commands {
 
     /// Filter and sort points within a radius of a center location
     WithinRadius {
-        #[arg(long, help = "Center latitude (optional if center-address is provided)")]
+        #[arg(
+            long,
+            help = "Center latitude (optional if center-address is provided)"
+        )]
         lat: Option<f64>,
 
-        #[arg(long, help = "Center longitude (optional if center-address is provided)")]
+        #[arg(
+            long,
+            help = "Center longitude (optional if center-address is provided)"
+        )]
         lng: Option<f64>,
 
-        #[arg(long, short, help = "Center address (optional if lat/lng are provided)")]
+        #[arg(
+            long,
+            short,
+            help = "Center address (optional if lat/lng are provided)"
+        )]
         address: Option<String>,
 
-        #[arg(long, help = "Target latitude (optional if target-address is provided)")]
+        #[arg(
+            long,
+            help = "Target latitude (optional if target-address is provided)"
+        )]
         target_lat: Option<f64>,
 
-        #[arg(long, help = "Target longitude (optional if target-address is provided)")]
+        #[arg(
+            long,
+            help = "Target longitude (optional if target-address is provided)"
+        )]
         target_lng: Option<f64>,
 
-        #[arg(long, help = "Target address (optional if target lat/lng are provided)")]
+        #[arg(
+            long,
+            help = "Target address (optional if target lat/lng are provided)"
+        )]
         target_address: Option<String>,
 
         #[arg(short, long, help = "Radius in kilometers")]
+        radius: f64,
+    },
+
+    /// Score a location based on nearby amenities
+    Score {
+        #[arg(
+            long,
+            short,
+            help = "Address to score (optional if lat/lng are provided)"
+        )]
+        address: Option<String>,
+
+        #[arg(long, help = "Latitude (optional if address is provided)")]
+        lat: Option<f64>,
+
+        #[arg(long, help = "Longitude (optional if address is provided)")]
+        lng: Option<f64>,
+
+        #[arg(
+            short,
+            long,
+            help = "Radius in kilometers to search within",
+            default_value_t = 2.0
+        )]
         radius: f64,
     },
 }
@@ -229,40 +272,59 @@ async fn main() {
             target_address,
             radius,
         } => {
-            let (c_lat, c_lng) = if let (Some(la), Some(lo)) = (lat, lng) {
-                (la, lo)
-            } else if let Some(addr) = address {
-                let loc = client.geocode_async(&addr).await.unwrap_or_else(|e| {
-                    eprintln!("{} {}", "Error geocoding center address:".red().bold(), e);
+            let (center_latitude, center_longitude) =
+                if let (Some(latitude_val), Some(longitude_val)) = (lat, lng) {
+                    (latitude_val, longitude_val)
+                } else if let Some(address_val) = address {
+                    let loc = client
+                        .geocode_async(&address_val)
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("{} {}", "Error geocoding center address:".red().bold(), e);
+                            process::exit(1);
+                        });
+                    (loc.latitude, loc.longitude)
+                } else {
+                    eprintln!(
+                        "{} Either center lat/lng or address must be provided",
+                        "Error:".red().bold()
+                    );
                     process::exit(1);
-                });
-                (loc.latitude, loc.longitude)
-            } else {
-                eprintln!(
-                    "{} Either center lat/lng or address must be provided",
-                    "Error:".red().bold()
-                );
-                process::exit(1);
-            };
+                };
 
-            let (t_lat, t_lng) = if let (Some(la), Some(lo)) = (target_lat, target_lng) {
-                (la, lo)
-            } else if let Some(addr) = target_address {
-                let loc = client.geocode_async(&addr).await.unwrap_or_else(|e| {
-                    eprintln!("{} {}", "Error geocoding target address:".red().bold(), e);
+            let (target_latitude, target_longitude) =
+                if let (Some(latitude_val), Some(longitude_val)) = (target_lat, target_lng) {
+                    (latitude_val, longitude_val)
+                } else if let Some(address_val) = target_address {
+                    let loc = client
+                        .geocode_async(&address_val)
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("{} {}", "Error geocoding target address:".red().bold(), e);
+                            process::exit(1);
+                        });
+                    (loc.latitude, loc.longitude)
+                } else {
+                    eprintln!(
+                        "{} Either target lat/lng or address must be provided",
+                        "Error:".red().bold()
+                    );
                     process::exit(1);
-                });
-                (loc.latitude, loc.longitude)
-            } else {
-                eprintln!(
-                    "{} Either target lat/lng or address must be provided",
-                    "Error:".red().bold()
-                );
-                process::exit(1);
-            };
+                };
 
-            let within = mapradar::utils::is_within_radius(t_lat, t_lng, c_lat, c_lng, radius);
-            let dist = mapradar::utils::calculate_distance(c_lat, c_lng, t_lat, t_lng);
+            let within = mapradar::utils::is_within_radius(
+                target_latitude,
+                target_longitude,
+                center_latitude,
+                center_longitude,
+                radius,
+            );
+            let dist = mapradar::utils::calculate_distance(
+                center_latitude,
+                center_longitude,
+                target_latitude,
+                target_longitude,
+            );
 
             if within {
                 println!(
@@ -278,6 +340,65 @@ async fn main() {
                     dist,
                     radius
                 );
+            }
+        }
+        Commands::Score {
+            address,
+            lat,
+            lng,
+            radius,
+        } => {
+            let query = if let (Some(latitude_val), Some(longitude_val)) = (lat, lng) {
+                SearchQuery::from_coordinates(latitude_val, longitude_val)
+            } else if let Some(address_val) = address {
+                SearchQuery::from_address(address_val)
+            } else {
+                eprintln!(
+                    "{} Either lat/lng or address must be provided",
+                    "Error:".red().bold()
+                );
+                process::exit(1);
+            };
+
+            match client.score_location_async(query, radius).await {
+                Ok(score) => {
+                    println!("\n{}", "=== Location Score ===".blue().bold());
+                    println!("Location: {}", score.location.address);
+                    println!(
+                        "Coordinates: {}, {}",
+                        score.location.latitude, score.location.longitude
+                    );
+                    println!("Radius: {} km\n", radius);
+
+                    println!(
+                        "{} {:.1}/100\n",
+                        "OVERALL SCORE:".green().bold(),
+                        score.overall_score
+                    );
+
+                    println!("{}", "--- Category Breakdown ---".blue());
+                    for cat in score.breakdown {
+                        let avg_rating = if let Some(r) = cat.average_rating {
+                            format!("{:.1}", r)
+                        } else {
+                            "N/A".to_string()
+                        };
+
+                        println!(
+                            "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {:>4.1} km | Avg Rating: {}",
+                            cat.category,
+                            cat.score,
+                            cat.count_within_radius,
+                            cat.nearest_distance_km,
+                            avg_rating
+                        );
+                    }
+                    println!();
+                }
+                Err(err) => {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
+                    process::exit(1);
+                }
             }
         }
     }
