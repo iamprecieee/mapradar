@@ -2,6 +2,15 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] - 2026-06-17
+
+### Added
+- **Distance Matrix / Geofencing**: Fast zero-API-call Point-in-Radius checking via `is_within_radius`, `filter_within_radius`, and `sort_by_distance`.
+- **Location Scoring**: Compute automated composite quality scores for locations using `score_location` combining Distance, Density, and Quality.
+- **Structured Export**: Export nearby results and location scores via new `export` module (GeoJSON, CSV, KML) to power mapping platforms. Added `--format` flag to `nearby` and `score` CLI subcommands.
+
+---
+
 ## [0.4.2] - 2026-06-15
 
 ### Fixed

@@ -4,6 +4,32 @@ use mapradar::client::MapradarClient;
 use mapradar::models::{SearchQuery, ServiceType, TravelParameters};
 use std::process;
 
+fn validate_extension(file_path: &str, format: &str) -> Result<(), String> {
+    let extension = std::path::Path::new(file_path)
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or("")
+        .to_lowercase();
+
+    let format_lower = format.to_lowercase();
+    let is_mismatch = match format_lower.as_str() {
+        "json" => extension != "json",
+        "geojson" => extension != "geojson" && extension != "json",
+        "csv" => extension != "csv",
+        "kml" => extension != "kml",
+        _ => false,
+    };
+
+    if is_mismatch {
+        Err(format!(
+            "Output file extension '.{}' does not match requested format '{}'",
+            extension, format_lower
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "mapradar")]
 #[command(about = "CLI for Mapradar Location Intelligence", long_about = None)]
@@ -45,6 +71,14 @@ enum Commands {
         /// Maximum number of results to return per service
         #[arg(short, long, alias = "limit", default_value_t = 10)]
         max_results: usize,
+
+        /// Output format (json, geojson, csv, kml)
+        #[arg(short, long, default_value = "json")]
+        format: String,
+
+        /// Output file path (optional, prints to stdout if omitted)
+        #[arg(short, long)]
+        output: Option<String>,
     },
 
     /// Calculate travel distance between two points
@@ -140,6 +174,14 @@ enum Commands {
             default_value_t = 2.0
         )]
         radius: f64,
+
+        /// Output format (json, geojson, csv, kml)
+        #[arg(short, long, default_value = "json")]
+        format: String,
+
+        /// Output file path (optional, prints to stdout if omitted)
+        #[arg(short, long)]
+        output: Option<String>,
     },
 }
 
@@ -175,6 +217,8 @@ async fn main() {
             radius,
             r#type,
             max_results,
+            format,
+            output,
         } => {
             let service_types = r#type
                 .split(",")
@@ -217,11 +261,48 @@ async fn main() {
                 }
             };
 
+            if let Some(file_path) = &output
+                && let Err(msg) = validate_extension(file_path, &format)
+            {
+                eprintln!("{} {}", "Error:".red().bold(), msg);
+                process::exit(1);
+            }
+
             match client
                 .fetch_intelligence_async(query, service_types, radius / 1000.0, max_results)
                 .await
             {
-                Ok(intel) => println!("{}", serde_json::to_string_pretty(&intel).unwrap()),
+                Ok(intel) => {
+                    let out_string = if format.to_lowercase() == "json" {
+                        serde_json::to_string_pretty(&intel).unwrap()
+                    } else if let Ok(export_fmt) = format.parse::<mapradar::export::ExportFormat>()
+                    {
+                        mapradar::export::export_intelligence(&intel, export_fmt)
+                    } else {
+                        eprintln!("{} Invalid format: {}", "Error:".red().bold(), format);
+                        process::exit(1);
+                    };
+
+                    if let Some(file_path) = output {
+                        if let Err(e) = std::fs::write(&file_path, out_string) {
+                            eprintln!(
+                                "{} Failed to write to file {}: {}",
+                                "Error:".red().bold(),
+                                file_path,
+                                e
+                            );
+                            process::exit(1);
+                        } else {
+                            println!(
+                                "{} Successfully wrote output to {}",
+                                "Success:".green().bold(),
+                                file_path
+                            );
+                        }
+                    } else {
+                        println!("{}", out_string);
+                    }
+                }
                 Err(err) => {
                     eprintln!("{} {}", "Error:".red().bold(), err);
                     process::exit(1);
@@ -347,6 +428,8 @@ async fn main() {
             lat,
             lng,
             radius,
+            format,
+            output,
         } => {
             let query = if let (Some(latitude_val), Some(longitude_val)) = (lat, lng) {
                 SearchQuery::from_coordinates(latitude_val, longitude_val)
@@ -360,40 +443,81 @@ async fn main() {
                 process::exit(1);
             };
 
+            if let Some(file_path) = &output
+                && let Err(msg) = validate_extension(file_path, &format)
+            {
+                eprintln!("{} {}", "Error:".red().bold(), msg);
+                process::exit(1);
+            }
+
             match client.score_location_async(query, radius).await {
                 Ok(score) => {
-                    println!("\n{}", "=== Location Score ===".blue().bold());
-                    println!("Location: {}", score.location.address);
-                    println!(
-                        "Coordinates: {}, {}",
-                        score.location.latitude, score.location.longitude
-                    );
-                    println!("Radius: {} km\n", radius);
-
-                    println!(
-                        "{} {:.1}/100\n",
-                        "OVERALL SCORE:".green().bold(),
-                        score.overall_score
-                    );
-
-                    println!("{}", "--- Category Breakdown ---".blue());
-                    for cat in score.breakdown {
-                        let avg_rating = if let Some(r) = cat.average_rating {
-                            format!("{:.1}", r)
-                        } else {
-                            "N/A".to_string()
-                        };
+                    if format.to_lowercase() == "json" && output.is_none() {
+                        // Print the default custom UI for json since Score doesn't use raw json in the CLI usually
+                        println!("\n{}", "=== Location Score ===".blue().bold());
+                        println!("Location: {}", score.location.address);
+                        println!(
+                            "Coordinates: {}, {}",
+                            score.location.latitude, score.location.longitude
+                        );
+                        println!("Radius: {} km\n", radius);
 
                         println!(
-                            "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {:>4.1} km | Avg Rating: {}",
-                            cat.category,
-                            cat.score,
-                            cat.count_within_radius,
-                            cat.nearest_distance_km,
-                            avg_rating
+                            "{} {:.1}/100\n",
+                            "OVERALL SCORE:".green().bold(),
+                            score.overall_score
                         );
+
+                        println!("{}", "--- Category Breakdown ---".blue());
+                        for cat in score.breakdown {
+                            let avg_rating = if let Some(r) = cat.average_rating {
+                                format!("{:.1}", r)
+                            } else {
+                                "N/A".to_string()
+                            };
+
+                            println!(
+                                "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {:>4.1} km | Avg Rating: {}",
+                                cat.category,
+                                cat.score,
+                                cat.count_within_radius,
+                                cat.nearest_distance_km,
+                                avg_rating
+                            );
+                        }
+                        println!();
+                    } else {
+                        let out_string = if format.to_lowercase() == "json" {
+                            serde_json::to_string_pretty(&score).unwrap()
+                        } else if let Ok(export_fmt) =
+                            format.parse::<mapradar::export::ExportFormat>()
+                        {
+                            mapradar::export::export_score(&score, export_fmt)
+                        } else {
+                            eprintln!("{} Invalid format: {}", "Error:".red().bold(), format);
+                            process::exit(1);
+                        };
+
+                        if let Some(file_path) = output {
+                            if let Err(e) = std::fs::write(&file_path, out_string) {
+                                eprintln!(
+                                    "{} Failed to write to file {}: {}",
+                                    "Error:".red().bold(),
+                                    file_path,
+                                    e
+                                );
+                                process::exit(1);
+                            } else {
+                                println!(
+                                    "{} Successfully wrote output to {}",
+                                    "Success:".green().bold(),
+                                    file_path
+                                );
+                            }
+                        } else {
+                            println!("{}", out_string);
+                        }
                     }
-                    println!();
                 }
                 Err(err) => {
                     eprintln!("{} {}", "Error:".red().bold(), err);

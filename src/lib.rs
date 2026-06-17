@@ -30,6 +30,7 @@ use pyo3::prelude::*;
 pub mod cache;
 pub mod client;
 pub mod error;
+pub mod export;
 pub mod models;
 pub mod scoring;
 pub mod utils;
@@ -69,6 +70,36 @@ fn sort_by_distance(
 }
 
 #[cfg(feature = "python")]
+#[pyfunction]
+fn export_nearby(services: Vec<models::NearbyService>, format_str: String) -> PyResult<String> {
+    let format: export::ExportFormat = format_str
+        .parse()
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid format: {}", e)))?;
+    Ok(export::export_nearby(&services, format))
+}
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn export_intelligence(
+    intel: models::LocationIntelligence,
+    format_str: String,
+) -> PyResult<String> {
+    let format: export::ExportFormat = format_str
+        .parse()
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid format: {}", e)))?;
+    Ok(export::export_intelligence(&intel, format))
+}
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn export_score(score: models::LocationScore, format_str: String) -> PyResult<String> {
+    let format: export::ExportFormat = format_str
+        .parse()
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid format: {}", e)))?;
+    Ok(export::export_score(&score, format))
+}
+
+#[cfg(feature = "python")]
 #[pymodule]
 fn mapradar(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<models::GeoLocation>()?;
@@ -82,11 +113,15 @@ fn mapradar(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<models::GeoPoint>()?;
     m.add_class::<models::CategoryScore>()?;
     m.add_class::<models::LocationScore>()?;
+    m.add_class::<export::ExportFormat>()?;
     m.add_class::<client::MapradarClient>()?;
 
     m.add_function(wrap_pyfunction!(is_within_radius, m)?)?;
     m.add_function(wrap_pyfunction!(filter_within_radius, m)?)?;
     m.add_function(wrap_pyfunction!(sort_by_distance, m)?)?;
+    m.add_function(wrap_pyfunction!(export_nearby, m)?)?;
+    m.add_function(wrap_pyfunction!(export_intelligence, m)?)?;
+    m.add_function(wrap_pyfunction!(export_score, m)?)?;
 
     Ok(())
 }

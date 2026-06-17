@@ -4,3 +4,7 @@ test*.py
 target
 .venv
 .git
+.ruff_cache
+*.csv
+*.kml
+*.geojson

@@ -21,7 +21,7 @@ uv add mapradar
 **Rust**
 ```toml
 [dependencies]
-mapradar = "0.4.2"
+mapradar = "0.5.0"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -59,11 +59,20 @@ cargo build
 # Geocode an address
 mapradar geocode "1600 Amphitheatre Parkway, Mountain View, CA"
 
-# Find nearby amenities
+# Find nearby amenities (JSON output)
 mapradar nearby --lat 6.6018 --lng 3.3515 --radius 500 --type bank,school
+
+# Export nearby amenities to GeoJSON or CSV
+mapradar nearby --lat 6.6018 --lng 3.3515 --radius 500 --type bank,school --format geojson
 
 # Distance calculation
 mapradar distance --origin-addr "Shibuya, Tokyo" --dest-addr "Shinjuku, Tokyo" --mode drive
+
+# Geofence (Point in radius)
+mapradar within-radius --lat 6.6018 --lng 3.3515 --target-address "Yaba, Lagos" -r 5.0
+
+# Location Scoring
+mapradar score --address "Yaba, Lagos" -r 3.0
 ```
 
 <details>
@@ -93,6 +102,14 @@ async def main():
         radius_km=3.0
     )
     print(f"Location: {intel.location.address}")
+
+    # Export to GeoJSON
+    import mapradar
+    geojson = mapradar.export_intelligence(intel, "geojson")
+    
+    # Location Scoring
+    score = await client.score_location(query, radius_km=5.0)
+    print(f"Overall Score: {score.overall_score:.2f}")
 
 asyncio.run(main())
 ```

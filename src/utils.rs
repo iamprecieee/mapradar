@@ -93,15 +93,20 @@ pub fn is_within_radius(
 
 /// Filters a list of GeoPoints to only those within the specified radius.
 /// It also updates their `distance_km` field.
-pub fn filter_within_radius(points: &[GeoPoint], center_lat: f64, center_lng: f64, radius_km: f64) -> Vec<GeoPoint> {
+pub fn filter_within_radius(
+    points: &[GeoPoint],
+    center_lat: f64,
+    center_lng: f64,
+    radius_km: f64,
+) -> Vec<GeoPoint> {
     points
         .iter()
-        .filter_map(|p| {
-            let dist = calculate_distance(center_lat, center_lng, p.latitude, p.longitude);
+        .filter_map(|point| {
+            let dist = calculate_distance(center_lat, center_lng, point.latitude, point.longitude);
             if dist <= radius_km {
-                let mut updated_p = p.clone();
-                updated_p.distance_km = Some(dist);
-                Some(updated_p)
+                let mut updated_point = point.clone();
+                updated_point.distance_km = Some(dist);
+                Some(updated_point)
             } else {
                 None
             }
@@ -112,9 +117,14 @@ pub fn filter_within_radius(points: &[GeoPoint], center_lat: f64, center_lng: f6
 /// Sorts a list of GeoPoints by their distance to a center point in place.
 /// It also updates their `distance_km` field.
 pub fn sort_by_distance(points: &mut [GeoPoint], center_lat: f64, center_lng: f64) {
-    for p in points.iter_mut() {
-        if p.distance_km.is_none() {
-            p.distance_km = Some(calculate_distance(center_lat, center_lng, p.latitude, p.longitude));
+    for point in points.iter_mut() {
+        if point.distance_km.is_none() {
+            point.distance_km = Some(calculate_distance(
+                center_lat,
+                center_lng,
+                point.latitude,
+                point.longitude,
+            ));
         }
     }
     points.sort_by(|a, b| {
