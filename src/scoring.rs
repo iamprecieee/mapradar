@@ -22,7 +22,7 @@ pub fn compute_category_score(
 ) -> CategoryScore {
     if services.is_empty() {
         return CategoryScore {
-            category: format!("{:?}", service_type),
+            category: service_type.slug().to_string(),
             score: 0.0,
             nearest_distance_km: f64::MAX,
             count_within_radius: 0,
@@ -70,7 +70,7 @@ pub fn compute_category_score(
     let total_score = (0.4 * distance_score) + (0.3 * density_score) + (0.3 * quality_score);
 
     CategoryScore {
-        category: format!("{:?}", service_type),
+        category: service_type.slug().to_string(),
         score: total_score,
         nearest_distance_km,
         count_within_radius,

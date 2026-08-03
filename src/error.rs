@@ -24,6 +24,11 @@ pub enum GeoError {
     #[error("No results found for the given query")]
     ZeroResults,
 
+    /// Caller-supplied input that could not be understood (e.g. an unknown
+    /// travel mode or service type).
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     /// Catch-all for unexpected errors.
     #[error("Unknown error: {0}")]
     Unknown(String),
@@ -37,6 +42,7 @@ impl GeoError {
             GeoError::ConfigError(_) => -32002,  // Custom Server Error
             GeoError::ApiError { .. } => -32003, // Custom Server Error
             GeoError::ZeroResults => -32602,     // Invalid params (effectively)
+            GeoError::InvalidInput(_) => -32602, // Invalid params
             GeoError::Unknown(_) => -32603,      // Internal error
         }
     }
@@ -49,6 +55,7 @@ impl From<GeoError> for PyErr {
         match err {
             GeoError::ConfigError(msg) => pyo3::exceptions::PyValueError::new_err(msg),
             GeoError::ZeroResults => pyo3::exceptions::PyValueError::new_err("No results found"),
+            GeoError::InvalidInput(msg) => pyo3::exceptions::PyValueError::new_err(msg),
             GeoError::ApiError { status, message } => {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("{}: {}", status, message))
             }

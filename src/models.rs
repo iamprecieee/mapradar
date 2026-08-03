@@ -91,6 +91,84 @@ pub enum ServiceType {
     Pharmacy,
 }
 
+impl ServiceType {
+    /// Returns the canonical lowercase slug for this service type.
+    ///
+    /// Slugs double as the CLI `--type` vocabulary and as the label written to
+    /// exports, so a value read out of a CSV or GeoJSON file can be fed
+    /// straight back into a query.
+    pub fn slug(&self) -> &'static str {
+        match self {
+            ServiceType::BusStop => "bus-stop",
+            ServiceType::Market => "market",
+            ServiceType::School => "school",
+            ServiceType::Mall => "mall",
+            ServiceType::Hospital => "hospital",
+            ServiceType::Bank => "bank",
+            ServiceType::Restaurant => "restaurant",
+            ServiceType::FuelStation => "fuel-station",
+            ServiceType::TrainStation => "train-station",
+            ServiceType::TaxiStand => "taxi-stand",
+            ServiceType::Landmark => "landmark",
+            ServiceType::Pharmacy => "pharmacy",
+        }
+    }
+
+    /// Returns the Google Places API type string for this service type.
+    pub fn google_place_type(&self) -> &'static str {
+        match self {
+            ServiceType::BusStop => "bus_station",
+            ServiceType::Market => "supermarket",
+            ServiceType::School => "school",
+            ServiceType::Mall => "shopping_mall",
+            ServiceType::Hospital => "hospital",
+            ServiceType::Bank => "bank",
+            ServiceType::Restaurant => "restaurant",
+            ServiceType::FuelStation => "gas_station",
+            ServiceType::TrainStation => "train_station",
+            ServiceType::TaxiStand => "taxi_stand",
+            ServiceType::Landmark => "tourist_attraction",
+            ServiceType::Pharmacy => "pharmacy",
+        }
+    }
+}
+
+impl std::fmt::Display for ServiceType {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.slug())
+    }
+}
+
+impl std::str::FromStr for ServiceType {
+    type Err = String;
+
+    /// Parses a service type slug. Matching is case-insensitive and treats
+    /// hyphens, underscores and spaces interchangeably.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let normalized = value.trim().to_lowercase().replace(['_', ' '], "-");
+
+        match normalized.as_str() {
+            "bus-stop" => Ok(ServiceType::BusStop),
+            "market" => Ok(ServiceType::Market),
+            "school" => Ok(ServiceType::School),
+            "mall" => Ok(ServiceType::Mall),
+            "hospital" => Ok(ServiceType::Hospital),
+            "bank" => Ok(ServiceType::Bank),
+            "restaurant" => Ok(ServiceType::Restaurant),
+            "fuel-station" => Ok(ServiceType::FuelStation),
+            "train-station" => Ok(ServiceType::TrainStation),
+            "taxi-stand" => Ok(ServiceType::TaxiStand),
+            "landmark" => Ok(ServiceType::Landmark),
+            "pharmacy" => Ok(ServiceType::Pharmacy),
+            _ => Err(format!(
+                "Unknown service type '{}'. Supported types: bank, hospital, school, restaurant, \
+                 bus-stop, market, mall, fuel-station, train-station, taxi-stand, landmark, pharmacy",
+                value.trim()
+            )),
+        }
+    }
+}
+
 /// Represents a specific amenity found near a location.
 #[cfg_attr(feature = "python", pyclass(get_all, set_all, from_py_object))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -378,6 +456,71 @@ impl LocationScore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const ALL_SERVICE_TYPES: [ServiceType; 12] = [
+        ServiceType::BusStop,
+        ServiceType::Market,
+        ServiceType::School,
+        ServiceType::Mall,
+        ServiceType::Hospital,
+        ServiceType::Bank,
+        ServiceType::Restaurant,
+        ServiceType::FuelStation,
+        ServiceType::TrainStation,
+        ServiceType::TaxiStand,
+        ServiceType::Landmark,
+        ServiceType::Pharmacy,
+    ];
+
+    #[test]
+    fn test_service_type_slug_round_trips_through_parsing() {
+        for service_type in ALL_SERVICE_TYPES {
+            let parsed: ServiceType = service_type.slug().parse().unwrap();
+            assert_eq!(parsed, service_type);
+        }
+    }
+
+    #[test]
+    fn test_service_type_display_matches_slug() {
+        for service_type in ALL_SERVICE_TYPES {
+            assert_eq!(service_type.to_string(), service_type.slug());
+        }
+    }
+
+    #[test]
+    fn test_service_type_parsing_ignores_case_and_separators() {
+        let expected = ServiceType::FuelStation;
+        for input in [
+            "fuel-station",
+            "fuel_station",
+            "fuel station",
+            "FUEL-STATION",
+            "  Fuel_Station  ",
+        ] {
+            assert_eq!(input.parse::<ServiceType>().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn test_service_type_parsing_rejects_unknown_type() {
+        let err = "nightclub".parse::<ServiceType>().unwrap_err();
+        assert!(err.contains("nightclub"), "message was: {}", err);
+        assert!(err.contains("bank"), "message was: {}", err);
+    }
+
+    #[test]
+    fn test_service_types_map_to_distinct_google_place_types() {
+        let mut seen = std::collections::HashSet::new();
+        for service_type in ALL_SERVICE_TYPES {
+            let google_type = service_type.google_place_type();
+            assert!(
+                seen.insert(google_type),
+                "duplicate Google place type '{}' for {}",
+                google_type,
+                service_type
+            );
+        }
+    }
 
     #[test]
     fn test_jsonrpc_serialization() {

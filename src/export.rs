@@ -112,7 +112,7 @@ fn export_nearby_geojson(services: &[NearbyService]) -> String {
             },
             "properties": {
                 "name": service.name,
-                "type": format!("{:?}", service.service_type),
+                "type": service.service_type.slug(),
                 "distance_km": service.distance_km,
                 "address": service.address.clone().unwrap_or_default(),
                 "rating": service.rating,
@@ -145,9 +145,9 @@ fn export_nearby_csv(services: &[NearbyService]) -> String {
             .replace("\"", "\"\"");
 
         csv.push_str(&format!(
-            "\"{}\",{:?},{},{},{:.2},{},\"{}\",\"{}\",{}\n",
+            "\"{}\",{},{},{},{:.2},{},\"{}\",\"{}\",{}\n",
             name,
-            service.service_type,
+            service.service_type.slug(),
             service.latitude,
             service.longitude,
             service.distance_km,
@@ -176,8 +176,9 @@ fn export_nearby_kml(services: &[NearbyService]) -> String {
         kml.push_str(&format!("      <name>{}</name>\n", name));
 
         let desc = format!(
-            "Type: {:?}\nDistance: {:.2} km",
-            service.service_type, service.distance_km
+            "Type: {}\nDistance: {:.2} km",
+            service.service_type.slug(),
+            service.distance_km
         );
         kml.push_str(&format!("      <description>{}</description>\n", desc));
 

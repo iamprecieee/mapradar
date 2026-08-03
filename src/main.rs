@@ -220,24 +220,16 @@ async fn main() {
             format,
             output,
         } => {
-            let service_types = r#type
-                .split(",")
-                .map(|type_str| match type_str.trim() {
-                    "bank" => ServiceType::Bank,
-                    "hospital" => ServiceType::Hospital,
-                    "school" => ServiceType::School,
-                    "restaurant" => ServiceType::Restaurant,
-                    "bus-stop" => ServiceType::BusStop,
-                    "market" => ServiceType::Market,
-                    "mall" => ServiceType::Mall,
-                    "fuel-station" => ServiceType::FuelStation,
-                    "train-station" => ServiceType::TrainStation,
-                    "taxi-stand" => ServiceType::TaxiStand,
-                    "landmark" => ServiceType::Landmark,
-                    "pharmacy" => ServiceType::Pharmacy,
-                    _ => ServiceType::Landmark, // Default fallback
-                })
-                .collect::<Vec<ServiceType>>();
+            let mut service_types = Vec::new();
+            for type_str in r#type.split(',') {
+                match type_str.trim().parse::<ServiceType>() {
+                    Ok(service_type) => service_types.push(service_type),
+                    Err(err) => {
+                        eprintln!("{} {}", "Error:".red().bold(), err);
+                        process::exit(1);
+                    }
+                }
+            }
 
             let query = if let Some(latitude_val) = latitude {
                 if let Some(longitude_val) = longitude {
@@ -249,16 +241,14 @@ async fn main() {
                     );
                     process::exit(1);
                 }
+            } else if let Some(address_val) = address {
+                SearchQuery::from_address(address_val)
             } else {
-                if let Some(address_val) = address {
-                    SearchQuery::from_address(address_val)
-                } else {
-                    eprintln!(
-                        "{} Either address or coordinates must be provided",
-                        "Error:".red().bold()
-                    );
-                    process::exit(1);
-                }
+                eprintln!(
+                    "{} Either address or coordinates must be provided",
+                    "Error:".red().bold()
+                );
+                process::exit(1);
             };
 
             if let Some(file_path) = &output
@@ -318,14 +308,6 @@ async fn main() {
             dest_lng,
             mode,
         } => {
-            let api_mode = match mode.to_lowercase().as_str() {
-                "walk" | "walking" => "WALK",
-                "bicycle" => "BICYCLE",
-                "motorcycle" | "bike" | "okada" | "keke" => "TWO_WHEELER",
-                "transit" | "train" | "bus" | "brt" | "danfo" => "TRANSIT",
-                _ => "DRIVE",
-            };
-
             let params = TravelParameters {
                 origin_latitude: origin_lat,
                 origin_longitude: origin_lng,
@@ -333,7 +315,7 @@ async fn main() {
                 destination_latitude: dest_lat,
                 destination_longitude: dest_lng,
                 destination_address: dest_addr,
-                travel_mode: Some(api_mode.to_string()),
+                travel_mode: Some(mode),
             };
 
             match client.calculate_travel_distance_async(params).await {

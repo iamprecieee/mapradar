@@ -31,6 +31,38 @@ pub fn calculate_distance(
     earth_radius * angular_distance
 }
 
+/// Resolves a user-supplied travel mode into a Google Routes API travel mode.
+///
+/// Accepts Google's own mode names alongside regional transport names, so
+/// `okada`, `keke`, `danfo`, `ojek`, `tuktuk` and friends all map onto the
+/// closest supported API mode. Matching is case-insensitive and treats
+/// hyphens and underscores interchangeably.
+pub fn resolve_travel_mode(mode: &str) -> Result<&'static str, GeoError> {
+    let normalized = mode.trim().to_uppercase().replace('-', "_");
+
+    let resolved = match normalized.as_str() {
+        // Two- and three-wheelers
+        "TWO_WHEELER" | "MOTORCYCLE" | "BIKE" | "OKADA" | "KEKE" | "AUTO" | "RICKSHAW"
+        | "TUKTUK" | "OJEK" | "BAJAJ" | "BECAK" => "TWO_WHEELER",
+        // Shared and public transit
+        "TRANSIT" | "TRAIN" | "BUS" | "DANFO" | "BRT" | "ANGKOT" | "BUSWAY" | "METRO"
+        | "LOCAL_TRAIN" => "TRANSIT",
+        "WALK" | "WALKING" | "FOOT" => "WALK",
+        "BICYCLE" | "BIKING" | "CYCLING" => "BICYCLE",
+        "DRIVE" | "DRIVING" | "CAR" => "DRIVE",
+        _ => {
+            return Err(GeoError::InvalidInput(format!(
+                "Unknown travel mode '{}'. Supported modes: drive, walk, bicycle, transit, \
+                 two_wheeler (and regional aliases such as okada, keke, danfo, brt, ojek, bajaj, \
+                 becak, angkot, busway, metro, local_train, auto, rickshaw, tuktuk)",
+                mode.trim()
+            )));
+        }
+    };
+
+    Ok(resolved)
+}
+
 /// Parse address components to find city, state, and country.
 pub fn parse_address_components(
     address: &Value,
@@ -190,5 +222,39 @@ mod tests {
         assert_eq!(city, Some("London".to_string()));
         assert_eq!(state, Some("England".to_string()));
         assert_eq!(country, "United Kingdom".to_string());
+    }
+
+    #[test]
+    fn test_resolve_travel_mode_accepts_google_modes() {
+        for mode in ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] {
+            assert_eq!(resolve_travel_mode(mode).unwrap(), mode);
+        }
+    }
+
+    #[test]
+    fn test_resolve_travel_mode_maps_regional_aliases() {
+        assert_eq!(resolve_travel_mode("okada").unwrap(), "TWO_WHEELER");
+        assert_eq!(resolve_travel_mode("keke").unwrap(), "TWO_WHEELER");
+        assert_eq!(resolve_travel_mode("tuktuk").unwrap(), "TWO_WHEELER");
+        assert_eq!(resolve_travel_mode("danfo").unwrap(), "TRANSIT");
+        assert_eq!(resolve_travel_mode("brt").unwrap(), "TRANSIT");
+        assert_eq!(resolve_travel_mode("angkot").unwrap(), "TRANSIT");
+    }
+
+    #[test]
+    fn test_resolve_travel_mode_ignores_case_spacing_and_separators() {
+        assert_eq!(resolve_travel_mode("  drive ").unwrap(), "DRIVE");
+        assert_eq!(resolve_travel_mode("Walking").unwrap(), "WALK");
+        assert_eq!(resolve_travel_mode("two-wheeler").unwrap(), "TWO_WHEELER");
+        assert_eq!(resolve_travel_mode("local-train").unwrap(), "TRANSIT");
+    }
+
+    #[test]
+    fn test_resolve_travel_mode_rejects_unknown_mode() {
+        let err = resolve_travel_mode("teleport").unwrap_err();
+        assert_eq!(err.json_rpc_code(), -32602);
+        let message = err.to_string();
+        assert!(message.contains("teleport"), "message was: {}", message);
+        assert!(message.contains("drive"), "message was: {}", message);
     }
 }

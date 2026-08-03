@@ -152,20 +152,7 @@ impl super::MapradarClient {
         }
 
         let url = "https://places.googleapis.com/v1/places:searchNearby";
-        let google_type = match service_type {
-            ServiceType::BusStop => "bus_station",
-            ServiceType::Market => "supermarket",
-            ServiceType::School => "school",
-            ServiceType::Mall => "shopping_mall",
-            ServiceType::Hospital => "hospital",
-            ServiceType::Bank => "bank",
-            ServiceType::Restaurant => "restaurant",
-            ServiceType::FuelStation => "gas_station",
-            ServiceType::TrainStation => "train_station",
-            ServiceType::TaxiStand => "taxi_stand",
-            ServiceType::Landmark => "tourist_attraction",
-            ServiceType::Pharmacy => "pharmacy",
-        };
+        let google_type = service_type.google_place_type();
 
         let body = serde_json::json!({
             "includedTypes": [google_type],
@@ -371,23 +358,9 @@ impl super::MapradarClient {
 
         let url = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
-        let raw_mode = travel_distance_params
-            .travel_mode
-            .unwrap_or_else(|| "DRIVE".to_string())
-            .to_uppercase();
-
-        let travel_mode_api = match raw_mode.as_str() {
-            // Two-wheelers and three-wheelers
-            "OKADA" | "KEKE" | "MOTORCYCLE" | "AUTO" | "RICKSHAW" | "TUKTUK" | "OJEK" | "BAJAJ"
-            | "BECAK" => "TWO_WHEELER",
-            // Transit vehicles
-            "DANFO" | "BRT" | "ANGKOT" | "BUSWAY" | "METRO" | "LOCAL_TRAIN" => "TRANSIT",
-            "WALK" => "WALK",
-            "BICYCLE" => "BICYCLE",
-            "DRIVE" => "DRIVE",
-            "TRANSIT" => "TRANSIT",
-            "TWO_WHEELER" => "TWO_WHEELER",
-            _ => &raw_mode,
+        let travel_mode_api = match travel_distance_params.travel_mode.as_deref() {
+            Some(mode) => crate::utils::resolve_travel_mode(mode)?,
+            None => "DRIVE",
         };
 
         let body = serde_json::json!({
