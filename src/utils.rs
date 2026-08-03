@@ -76,9 +76,12 @@ pub fn parse_address_components(
     let mut country = String::new();
 
     for component in components {
-        let types = component["types"].as_array().ok_or_else(|| {
-            GeoError::Unknown("Missing component types in API response".to_string())
-        })?;
+        // A component without a `types` array carries no information we can
+        // use, but the others may still identify the city, state and country,
+        // so skip it rather than failing the whole lookup.
+        let Some(types) = component["types"].as_array() else {
+            continue;
+        };
 
         if types.iter().any(|type_val| {
             type_val == "locality" || type_val == "postal_town" || type_val == "sublocality"
@@ -150,14 +153,14 @@ pub fn filter_within_radius(
 /// It also updates their `distance_km` field.
 pub fn sort_by_distance(points: &mut [GeoPoint], center_lat: f64, center_lng: f64) {
     for point in points.iter_mut() {
-        if point.distance_km.is_none() {
-            point.distance_km = Some(calculate_distance(
-                center_lat,
-                center_lng,
-                point.latitude,
-                point.longitude,
-            ));
-        }
+        // Always recompute: an existing value may have been measured from a
+        // different center, which would sort the list against stale distances.
+        point.distance_km = Some(calculate_distance(
+            center_lat,
+            center_lng,
+            point.latitude,
+            point.longitude,
+        ));
     }
     points.sort_by(|a, b| {
         a.distance_km
@@ -256,5 +259,55 @@ mod tests {
         let message = err.to_string();
         assert!(message.contains("teleport"), "message was: {}", message);
         assert!(message.contains("drive"), "message was: {}", message);
+    }
+
+    #[test]
+    fn test_sort_by_distance_recomputes_stale_distances() {
+        let mut points = vec![
+            GeoPoint {
+                latitude: 6.6,
+                longitude: 3.4,
+                label: Some("far".to_string()),
+                // Stale value measured from a different center.
+                distance_km: Some(0.0),
+            },
+            GeoPoint {
+                latitude: 6.5,
+                longitude: 3.4,
+                label: Some("near".to_string()),
+                distance_km: None,
+            },
+        ];
+
+        sort_by_distance(&mut points, 6.5, 3.4);
+
+        assert_eq!(points[0].label.as_deref(), Some("near"));
+        assert_eq!(points[1].label.as_deref(), Some("far"));
+        assert!(points[1].distance_km.unwrap() > points[0].distance_km.unwrap());
+    }
+
+    #[test]
+    fn test_parse_address_components_skips_components_without_types() {
+        let addr = json!([
+            {
+                "long_name": "Malformed entry",
+                "short_name": "Malformed"
+            },
+            {
+                "long_name": "Lagos",
+                "short_name": "Lagos",
+                "types": ["locality", "political"]
+            },
+            {
+                "long_name": "Nigeria",
+                "short_name": "NG",
+                "types": ["country", "political"]
+            }
+        ]);
+
+        let (city, state, country) = parse_address_components(&addr).unwrap();
+        assert_eq!(city, Some("Lagos".to_string()));
+        assert_eq!(state, None);
+        assert_eq!(country, "Nigeria".to_string());
     }
 }

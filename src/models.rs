@@ -192,6 +192,11 @@ pub struct LocationIntelligence {
     pub location: GeoLocation,
     pub nearby_services: Vec<NearbyService>,
     pub total_services_found: usize,
+    /// Messages for service categories that could not be retrieved. A
+    /// non-empty value means `nearby_services` covers only some of the
+    /// requested categories.
+    #[serde(default)]
+    pub failed_lookups: Vec<String>,
 }
 
 #[cfg(feature = "python")]
@@ -210,7 +215,14 @@ impl LocationIntelligence {
             location,
             nearby_services,
             total_services_found: total,
+            failed_lookups: Vec::new(),
         }
+    }
+
+    /// Records the categories that could not be retrieved for this location.
+    pub fn with_failed_lookups(mut self, failed_lookups: Vec<String>) -> Self {
+        self.failed_lookups = failed_lookups;
+        self
     }
 }
 
@@ -297,9 +309,18 @@ pub struct JsonRpcResponse {
 impl JsonRpcResponse {
     #[new]
     #[pyo3(signature = (id, result=None, error=None))]
-    pub fn py_new(id: String, result: Option<String>, error: Option<JsonRpcError>) -> Self {
-        let result_val = result.and_then(|r| serde_json::from_str(&r).ok());
-        Self::new(id, result_val, error)
+    pub fn py_new(
+        id: String,
+        result: Option<String>,
+        error: Option<JsonRpcError>,
+    ) -> PyResult<Self> {
+        let result_val = match result {
+            Some(raw) => Some(serde_json::from_str(&raw).map_err(|err| {
+                pyo3::exceptions::PyValueError::new_err(format!("Invalid JSON result: {}", err))
+            })?),
+            None => None,
+        };
+        Ok(Self::new(id, result_val, error))
     }
 
     #[getter]
@@ -340,8 +361,14 @@ impl JsonRpcResponse {
     }
 
     #[setter]
-    pub fn set_result(&mut self, value: Option<String>) {
-        self.result = value.and_then(|v| serde_json::from_str(&v).ok());
+    pub fn set_result(&mut self, value: Option<String>) -> PyResult<()> {
+        self.result = match value {
+            Some(raw) => Some(serde_json::from_str(&raw).map_err(|err| {
+                pyo3::exceptions::PyValueError::new_err(format!("Invalid JSON result: {}", err))
+            })?),
+            None => None,
+        };
+        Ok(())
     }
 
     /// Converts the response to a JSON string.

@@ -21,10 +21,15 @@ impl super::MapradarClient {
         result: Result<T, GeoError>,
     ) -> JsonRpcResponse {
         match result {
-            Ok(data) => {
-                let result_val = serde_json::to_value(&data).unwrap_or_default();
-                JsonRpcResponse::new(id, Some(result_val), None)
-            }
+            Ok(data) => match serde_json::to_value(&data) {
+                Ok(result_val) => JsonRpcResponse::new(id, Some(result_val), None),
+                Err(err) => {
+                    let geo_err = GeoError::ParseError(err);
+                    let rpc_err =
+                        JsonRpcError::new(geo_err.json_rpc_code(), geo_err.to_string(), None);
+                    JsonRpcResponse::new(id, None, Some(rpc_err))
+                }
+            },
             Err(err) => {
                 let rpc_err = JsonRpcError::new(err.json_rpc_code(), err.to_string(), None);
                 JsonRpcResponse::new(id, None, Some(rpc_err))
@@ -278,18 +283,23 @@ impl super::MapradarClient {
         let results = futures::future::join_all(futures).await;
 
         let mut all_services = Vec::new();
-        let mut errors = Vec::new();
+        let mut failed_lookups = Vec::new();
 
-        for result in results {
+        for (&service_type, result) in service_types.iter().zip(results) {
             match result {
                 Ok(services) => all_services.extend(services),
-                Err(err) => errors.push(err),
+                Err(err) => failed_lookups.push(format!("{}: {}", service_type.slug(), err)),
             }
         }
 
-        if all_services.is_empty() && !errors.is_empty() {
-            // All requests failed or yielded nothing because of an error
-            return Err(errors.into_iter().next().unwrap());
+        // Nothing usable came back, so the failure is the result. Otherwise the
+        // partial result is returned with the failures recorded on it, so
+        // callers can tell the picture is incomplete.
+        if all_services.is_empty() && !failed_lookups.is_empty() {
+            return Err(GeoError::ApiError {
+                status: "NEARBY_SEARCH_FAILED".to_string(),
+                message: failed_lookups.join("; "),
+            });
         }
 
         all_services.sort_by(|service_a, service_b| {
@@ -299,7 +309,7 @@ impl super::MapradarClient {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        Ok(LocationIntelligence::new(location, all_services))
+        Ok(LocationIntelligence::new(location, all_services).with_failed_lookups(failed_lookups))
     }
 
     pub async fn calculate_travel_distance_async(

@@ -263,6 +263,10 @@ async fn main() {
                 .await
             {
                 Ok(intel) => {
+                    for failure in &intel.failed_lookups {
+                        eprintln!("{} {}", "Warning:".yellow().bold(), failure);
+                    }
+
                     let out_string = if format.to_lowercase() == "json" {
                         serde_json::to_string_pretty(&intel).unwrap()
                     } else if let Ok(export_fmt) = format.parse::<mapradar::export::ExportFormat>()
