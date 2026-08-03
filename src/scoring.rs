@@ -24,7 +24,7 @@ pub fn compute_category_score(
         return CategoryScore {
             category: service_type.slug().to_string(),
             score: 0.0,
-            nearest_distance_km: f64::MAX,
+            nearest_distance_km: None,
             count_within_radius: 0,
             average_rating: None,
         };
@@ -33,7 +33,7 @@ pub fn compute_category_score(
     let nearest_distance_km = services
         .iter()
         .map(|service| service.distance_km)
-        .fold(f64::MAX, f64::min);
+        .fold(f64::INFINITY, f64::min);
 
     let count_within_radius = services.len();
 
@@ -52,7 +52,13 @@ pub fn compute_category_score(
 
     // 1. Distance Score (40% weight)
     // Closer is better. 0 km = 100, radius_km = 0.
-    let distance_ratio = (nearest_distance_km / radius_km).clamp(0.0, 1.0);
+    // A non-positive radius would make the ratio NaN, which would poison the
+    // whole score, so treat it as no distance credit.
+    let distance_ratio = if radius_km > 0.0 {
+        (nearest_distance_km / radius_km).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
     let distance_score = 100.0 * (1.0 - distance_ratio);
 
     // 2. Density Score (30% weight)
@@ -72,20 +78,36 @@ pub fn compute_category_score(
     CategoryScore {
         category: service_type.slug().to_string(),
         score: total_score,
-        nearest_distance_km,
+        nearest_distance_km: Some(nearest_distance_km),
         count_within_radius,
         average_rating,
     }
 }
 
-/// Computes an overall composite score for a location based on intelligence gathered
-pub fn compute_location_score(intel: &LocationIntelligence, radius_km: f64) -> LocationScore {
-    let grouped = group_by_type(&intel.nearby_services);
+/// Computes an overall composite score for a location based on intelligence
+/// gathered.
+///
+/// `requested_types` is the set of categories the search covered. Categories
+/// with no results still appear in the breakdown scoring zero, so that a
+/// location missing most amenities cannot outscore a well-served one purely by
+/// having fewer categories to average over.
+pub fn compute_location_score(
+    intel: &LocationIntelligence,
+    requested_types: &[ServiceType],
+    radius_km: f64,
+) -> LocationScore {
+    let mut grouped = group_by_type(&intel.nearby_services);
     let mut breakdown = Vec::new();
 
-    for (svc_type, services) in grouped {
-        let cat_score = compute_category_score(svc_type, &services, radius_km);
-        breakdown.push(cat_score);
+    for &service_type in requested_types {
+        let services = grouped.remove(&service_type).unwrap_or_default();
+        breakdown.push(compute_category_score(service_type, &services, radius_km));
+    }
+
+    // Any category present in the results but absent from `requested_types`
+    // still belongs in the breakdown rather than being dropped.
+    for (service_type, services) in grouped {
+        breakdown.push(compute_category_score(service_type, &services, radius_km));
     }
 
     // Sort breakdown by score descending
@@ -106,5 +128,168 @@ pub fn compute_location_score(intel: &LocationIntelligence, radius_km: f64) -> L
         overall_score,
         breakdown,
         location: intel.location.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::GeoLocation;
+
+    fn location() -> GeoLocation {
+        GeoLocation {
+            address: "Ikeja, Lagos".to_string(),
+            latitude: 6.6,
+            longitude: 3.35,
+            city: Some("Lagos".to_string()),
+            state: Some("Lagos".to_string()),
+            country: "Nigeria".to_string(),
+        }
+    }
+
+    fn service(service_type: ServiceType, distance_km: f64, rating: Option<f32>) -> NearbyService {
+        NearbyService {
+            name: format!("{} at {}km", service_type.slug(), distance_km),
+            service_type,
+            latitude: 6.6,
+            longitude: 3.35,
+            distance_km,
+            address: None,
+            rating,
+            place_id: None,
+            phone_number: None,
+            open_now: None,
+        }
+    }
+
+    #[test]
+    fn test_missing_categories_are_scored_zero_and_reported() {
+        let intel =
+            LocationIntelligence::new(location(), vec![service(ServiceType::Bank, 0.1, Some(4.5))]);
+        let requested = [
+            ServiceType::Bank,
+            ServiceType::Hospital,
+            ServiceType::School,
+        ];
+
+        let score = compute_location_score(&intel, &requested, 2.0);
+
+        assert_eq!(score.breakdown.len(), 3);
+        for service_type in requested {
+            let category = score
+                .breakdown
+                .iter()
+                .find(|entry| entry.category == service_type.slug())
+                .unwrap_or_else(|| panic!("{} missing from breakdown", service_type));
+
+            if service_type == ServiceType::Bank {
+                assert!(category.score > 0.0);
+                assert_eq!(category.count_within_radius, 1);
+                assert!(category.nearest_distance_km.is_some());
+            } else {
+                assert_eq!(category.score, 0.0);
+                assert_eq!(category.count_within_radius, 0);
+                assert_eq!(category.nearest_distance_km, None);
+            }
+        }
+    }
+
+    #[test]
+    fn test_missing_categories_lower_the_overall_score() {
+        let bank_only =
+            LocationIntelligence::new(location(), vec![service(ServiceType::Bank, 0.1, Some(4.5))]);
+
+        let one_of_one = compute_location_score(&bank_only, &[ServiceType::Bank], 2.0);
+        let one_of_three = compute_location_score(
+            &bank_only,
+            &[
+                ServiceType::Bank,
+                ServiceType::Hospital,
+                ServiceType::School,
+            ],
+            2.0,
+        );
+
+        assert!(
+            one_of_three.overall_score < one_of_one.overall_score,
+            "expected a location missing two categories to score lower: {} vs {}",
+            one_of_three.overall_score,
+            one_of_one.overall_score
+        );
+    }
+
+    #[test]
+    fn test_well_served_location_outscores_sparse_one() {
+        let requested = ServiceType::ALL;
+
+        let sparse = LocationIntelligence::new(
+            location(),
+            vec![service(ServiceType::Bank, 0.05, Some(5.0))],
+        );
+        let well_served = LocationIntelligence::new(
+            location(),
+            requested
+                .iter()
+                .flat_map(|&service_type| {
+                    [
+                        service(service_type, 0.3, Some(4.0)),
+                        service(service_type, 0.6, Some(4.0)),
+                    ]
+                })
+                .collect(),
+        );
+
+        let sparse_score = compute_location_score(&sparse, &requested, 2.0);
+        let well_served_score = compute_location_score(&well_served, &requested, 2.0);
+
+        assert!(
+            well_served_score.overall_score > sparse_score.overall_score,
+            "well served {} should beat sparse {}",
+            well_served_score.overall_score,
+            sparse_score.overall_score
+        );
+    }
+
+    #[test]
+    fn test_closer_amenities_score_higher() {
+        let near =
+            LocationIntelligence::new(location(), vec![service(ServiceType::Bank, 0.1, Some(4.0))]);
+        let far =
+            LocationIntelligence::new(location(), vec![service(ServiceType::Bank, 1.9, Some(4.0))]);
+
+        let near_score = compute_location_score(&near, &[ServiceType::Bank], 2.0);
+        let far_score = compute_location_score(&far, &[ServiceType::Bank], 2.0);
+
+        assert!(near_score.overall_score > far_score.overall_score);
+    }
+
+    #[test]
+    fn test_unrequested_categories_are_still_reported() {
+        let intel =
+            LocationIntelligence::new(location(), vec![service(ServiceType::Pharmacy, 0.4, None)]);
+
+        let score = compute_location_score(&intel, &[ServiceType::Bank], 2.0);
+
+        assert!(
+            score
+                .breakdown
+                .iter()
+                .any(|entry| entry.category == ServiceType::Pharmacy.slug()),
+            "pharmacy results should not be discarded"
+        );
+    }
+
+    #[test]
+    fn test_scores_stay_within_bounds_for_degenerate_radius() {
+        let intel =
+            LocationIntelligence::new(location(), vec![service(ServiceType::Bank, 0.0, Some(4.0))]);
+
+        let score = compute_location_score(&intel, &[ServiceType::Bank], 0.0);
+
+        assert!(
+            score.overall_score.is_finite() && (0.0..=100.0).contains(&score.overall_score),
+            "score was {}",
+            score.overall_score
+        );
     }
 }

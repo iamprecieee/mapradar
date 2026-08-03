@@ -437,22 +437,14 @@ impl super::MapradarClient {
         query: SearchQuery,
         radius_km: f64,
     ) -> Result<crate::models::LocationScore, GeoError> {
-        let all_types = vec![
-            ServiceType::Bank,
-            ServiceType::Hospital,
-            ServiceType::School,
-            ServiceType::Restaurant,
-            ServiceType::Market,
-            ServiceType::Mall,
-            ServiceType::Pharmacy,
-            ServiceType::BusStop,
-            ServiceType::FuelStation,
-        ];
+        let all_types = ServiceType::ALL.to_vec();
 
         let intel = self
-            .fetch_intelligence_async(query, all_types, radius_km, 20)
+            .fetch_intelligence_async(query, all_types.clone(), radius_km, 20)
             .await?;
 
-        Ok(crate::scoring::compute_location_score(&intel, radius_km))
+        Ok(crate::scoring::compute_location_score(
+            &intel, &all_types, radius_km,
+        ))
     }
 }

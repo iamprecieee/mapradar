@@ -456,18 +456,21 @@ async fn main() {
 
                         println!("{}", "--- Category Breakdown ---".blue());
                         for cat in score.breakdown {
-                            let avg_rating = if let Some(r) = cat.average_rating {
-                                format!("{:.1}", r)
-                            } else {
-                                "N/A".to_string()
+                            let avg_rating = match cat.average_rating {
+                                Some(rating) => format!("{:.1}", rating),
+                                None => "N/A".to_string(),
+                            };
+                            let nearest = match cat.nearest_distance_km {
+                                Some(distance) => format!("{:>4.1} km", distance),
+                                None => "    none".to_string(),
                             };
 
                             println!(
-                                "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {:>4.1} km | Avg Rating: {}",
+                                "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {} | Avg Rating: {}",
                                 cat.category,
                                 cat.score,
                                 cat.count_within_radius,
-                                cat.nearest_distance_km,
+                                nearest,
                                 avg_rating
                             );
                         }

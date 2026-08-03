@@ -92,6 +92,22 @@ pub enum ServiceType {
 }
 
 impl ServiceType {
+    /// Every supported service type.
+    pub const ALL: [ServiceType; 12] = [
+        ServiceType::BusStop,
+        ServiceType::Market,
+        ServiceType::School,
+        ServiceType::Mall,
+        ServiceType::Hospital,
+        ServiceType::Bank,
+        ServiceType::Restaurant,
+        ServiceType::FuelStation,
+        ServiceType::TrainStation,
+        ServiceType::TaxiStand,
+        ServiceType::Landmark,
+        ServiceType::Pharmacy,
+    ];
+
     /// Returns the canonical lowercase slug for this service type.
     ///
     /// Slugs double as the CLI `--type` vocabulary and as the label written to
@@ -444,7 +460,9 @@ impl GeoPoint {
 pub struct CategoryScore {
     pub category: String,
     pub score: f64,
-    pub nearest_distance_km: f64,
+    /// Distance to the closest amenity in this category, or `None` when none
+    /// were found within the search radius.
+    pub nearest_distance_km: Option<f64>,
     pub count_within_radius: usize,
     pub average_rating: Option<f64>,
 }
@@ -453,9 +471,13 @@ pub struct CategoryScore {
 #[pymethods]
 impl CategoryScore {
     fn __repr__(&self) -> String {
+        let nearest = match self.nearest_distance_km {
+            Some(distance) => format!("{:.2}km", distance),
+            None => "none".to_string(),
+        };
         format!(
-            "CategoryScore(category='{}', score={:.1}, count={}, nearest={:.2}km)",
-            self.category, self.score, self.count_within_radius, self.nearest_distance_km
+            "CategoryScore(category='{}', score={:.1}, count={}, nearest={})",
+            self.category, self.score, self.count_within_radius, nearest
         )
     }
 }
