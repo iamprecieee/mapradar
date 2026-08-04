@@ -45,7 +45,12 @@ pub fn compute_category_score(
     let average_rating = if ratings.is_empty() {
         None
     } else {
-        Some(ratings.iter().sum::<f64>() / ratings.len() as f64)
+        // Ratings arrive as f32 with one decimal place, so widening them to f64
+        // exposes representation noise (4.1 becomes 4.09999990463…) that the
+        // mean then compounds and every export format prints verbatim. Two
+        // decimals keep the real precision and drop the artifact.
+        let mean = ratings.iter().sum::<f64>() / ratings.len() as f64;
+        Some((mean * 100.0).round() / 100.0)
     };
 
     // --- Scoring Algorithm ---
@@ -276,6 +281,30 @@ mod tests {
                 .iter()
                 .any(|entry| entry.category == ServiceType::Pharmacy.slug()),
             "pharmacy results should not be discarded"
+        );
+    }
+
+    #[test]
+    fn test_average_rating_is_free_of_float_representation_noise() {
+        // 4.1 and 4.2 are not exactly representable as f32, so widening them to
+        // f64 and averaging produces a long tail of digits that every export
+        // format would print verbatim.
+        let intel = LocationIntelligence::new(
+            location(),
+            vec![
+                service(ServiceType::Bank, 0.2, Some(4.1)),
+                service(ServiceType::Bank, 0.3, Some(4.2)),
+            ],
+        );
+
+        let score = compute_location_score(&intel, &[ServiceType::Bank], 2.0);
+        let average_rating = score.breakdown[0].average_rating.unwrap();
+
+        assert_eq!(
+            average_rating.to_string(),
+            "4.15",
+            "average rating rendered as {}",
+            average_rating
         );
     }
 
