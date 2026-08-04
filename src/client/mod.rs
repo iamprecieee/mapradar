@@ -19,7 +19,8 @@ pub struct MapradarClient {
 }
 
 impl MapradarClient {
-    pub fn _new(api_key: String) -> Self {
+    /// Shared constructor behind the Rust and Python entry points.
+    pub(crate) fn build(api_key: String) -> Self {
         // Without an explicit timeout a stalled connection hangs the caller
         // indefinitely, which strands CLI invocations and blocks the Python
         // event loop.

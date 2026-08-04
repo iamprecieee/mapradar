@@ -12,7 +12,7 @@ use serde_json::Value;
 impl super::MapradarClient {
     #[cfg(not(feature = "python"))]
     pub fn new(api_key: String) -> Self {
-        Self::_new(api_key)
+        Self::build(api_key)
     }
 
     pub fn rpc_response<T: serde::Serialize>(

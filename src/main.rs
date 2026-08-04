@@ -13,11 +13,17 @@ fn validate_extension(file_path: &str, format: &str) -> Result<(), String> {
 
     let format_lower = format.to_lowercase();
     let is_mismatch = match format_lower.as_str() {
+        "text" => extension != "txt",
         "json" => extension != "json",
         "geojson" => extension != "geojson" && extension != "json",
         "csv" => extension != "csv",
         "kml" => extension != "kml",
-        _ => false,
+        _ => {
+            return Err(format!(
+                "Unknown output format '{}'. Supported formats: text, json, geojson, csv, kml",
+                format
+            ));
+        }
     };
 
     if is_mismatch {
@@ -28,6 +34,79 @@ fn validate_extension(file_path: &str, format: &str) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+/// Checks a format name against the formats a command supports, so an
+/// unsupported value fails before any API call is made.
+fn validate_format(format: &str, supported: &[&str]) -> Result<(), String> {
+    if supported.contains(&format.to_lowercase().as_str()) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Unknown output format '{}'. Supported formats: {}",
+            format,
+            supported.join(", ")
+        ))
+    }
+}
+
+/// Formats one breakdown row of a location score.
+fn format_category_row(category: &mapradar::models::CategoryScore) -> String {
+    let avg_rating = match category.average_rating {
+        Some(rating) => format!("{:.1}", rating),
+        None => "N/A".to_string(),
+    };
+    let nearest = match category.nearest_distance_km {
+        Some(distance) => format!("{:>4.1} km", distance),
+        None => "    none".to_string(),
+    };
+
+    format!(
+        "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {} | Avg Rating: {}",
+        category.category, category.score, category.count_within_radius, nearest, avg_rating
+    )
+}
+
+/// Renders a location score as plain text, for writing to a file.
+fn render_score_summary(score: &mapradar::models::LocationScore, radius: f64) -> String {
+    let mut summary = String::from("=== Location Score ===\n");
+    summary.push_str(&format!("Location: {}\n", score.location.address));
+    summary.push_str(&format!(
+        "Coordinates: {}, {}\n",
+        score.location.latitude, score.location.longitude
+    ));
+    summary.push_str(&format!("Radius: {} km\n\n", radius));
+    summary.push_str(&format!(
+        "OVERALL SCORE: {:.1}/100\n\n",
+        score.overall_score
+    ));
+    summary.push_str("--- Category Breakdown ---\n");
+    for category in &score.breakdown {
+        summary.push_str(&format_category_row(category));
+        summary.push('\n');
+    }
+    summary
+}
+
+/// Prints a location score as a colored terminal summary.
+fn print_score_summary(score: &mapradar::models::LocationScore, radius: f64) {
+    println!("\n{}", "=== Location Score ===".blue().bold());
+    println!("Location: {}", score.location.address);
+    println!(
+        "Coordinates: {}, {}",
+        score.location.latitude, score.location.longitude
+    );
+    println!("Radius: {} km\n", radius);
+    println!(
+        "{} {:.1}/100\n",
+        "OVERALL SCORE:".green().bold(),
+        score.overall_score
+    );
+    println!("{}", "--- Category Breakdown ---".blue());
+    for category in &score.breakdown {
+        println!("{}", format_category_row(category));
+    }
+    println!();
 }
 
 #[derive(Parser)]
@@ -175,8 +254,8 @@ enum Commands {
         )]
         radius: f64,
 
-        /// Output format (json, geojson, csv, kml)
-        #[arg(short, long, default_value = "json")]
+        /// Output format (text, json, geojson, csv, kml)
+        #[arg(short, long, default_value = "text")]
         format: String,
 
         /// Output file path (optional, prints to stdout if omitted)
@@ -250,6 +329,11 @@ async fn main() {
                 );
                 process::exit(1);
             };
+
+            if let Err(msg) = validate_format(&format, &["json", "geojson", "csv", "kml"]) {
+                eprintln!("{} {}", "Error:".red().bold(), msg);
+                process::exit(1);
+            }
 
             if let Some(file_path) = &output
                 && let Err(msg) = validate_extension(file_path, &format)
@@ -429,6 +513,11 @@ async fn main() {
                 process::exit(1);
             };
 
+            if let Err(msg) = validate_format(&format, &["text", "json", "geojson", "csv", "kml"]) {
+                eprintln!("{} {}", "Error:".red().bold(), msg);
+                process::exit(1);
+            }
+
             if let Some(file_path) = &output
                 && let Err(msg) = validate_extension(file_path, &format)
             {
@@ -438,53 +527,21 @@ async fn main() {
 
             match client.score_location_async(query, radius).await {
                 Ok(score) => {
-                    if format.to_lowercase() == "json" && output.is_none() {
-                        // Print the default custom UI for json since Score doesn't use raw json in the CLI usually
-                        println!("\n{}", "=== Location Score ===".blue().bold());
-                        println!("Location: {}", score.location.address);
-                        println!(
-                            "Coordinates: {}, {}",
-                            score.location.latitude, score.location.longitude
-                        );
-                        println!("Radius: {} km\n", radius);
-
-                        println!(
-                            "{} {:.1}/100\n",
-                            "OVERALL SCORE:".green().bold(),
-                            score.overall_score
-                        );
-
-                        println!("{}", "--- Category Breakdown ---".blue());
-                        for cat in score.breakdown {
-                            let avg_rating = match cat.average_rating {
-                                Some(rating) => format!("{:.1}", rating),
-                                None => "N/A".to_string(),
-                            };
-                            let nearest = match cat.nearest_distance_km {
-                                Some(distance) => format!("{:>4.1} km", distance),
-                                None => "    none".to_string(),
-                            };
-
-                            println!(
-                                "{:<15} | Score: {:>5.1} | Count: {:>2} | Nearest: {} | Avg Rating: {}",
-                                cat.category,
-                                cat.score,
-                                cat.count_within_radius,
-                                nearest,
-                                avg_rating
-                            );
-                        }
-                        println!();
+                    if format.to_lowercase() == "text" && output.is_none() {
+                        print_score_summary(&score, radius);
                     } else {
-                        let out_string = if format.to_lowercase() == "json" {
-                            serde_json::to_string_pretty(&score).unwrap()
-                        } else if let Ok(export_fmt) =
-                            format.parse::<mapradar::export::ExportFormat>()
-                        {
-                            mapradar::export::export_score(&score, export_fmt)
-                        } else {
-                            eprintln!("{} Invalid format: {}", "Error:".red().bold(), format);
-                            process::exit(1);
+                        let out_string = match format.to_lowercase().as_str() {
+                            "text" => render_score_summary(&score, radius),
+                            "json" => serde_json::to_string_pretty(&score).unwrap(),
+                            _ => match format.parse::<mapradar::export::ExportFormat>() {
+                                Ok(export_fmt) => {
+                                    mapradar::export::export_score(&score, export_fmt)
+                                }
+                                Err(err) => {
+                                    eprintln!("{} {}", "Error:".red().bold(), err);
+                                    process::exit(1);
+                                }
+                            },
                         };
 
                         if let Some(file_path) = output {

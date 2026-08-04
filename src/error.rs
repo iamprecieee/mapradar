@@ -12,10 +12,6 @@ pub enum GeoError {
     #[error("JSON parsing failed: {0}")]
     ParseError(#[from] serde_json::Error),
 
-    /// Configuration errors (e.g., missing API key).
-    #[error("Configuration error: {0}")]
-    ConfigError(String),
-
     /// Errors returned by the Google Maps API itself (e.g., INVALID_REQUEST).
     #[error("Google API error: {status} - {message}")]
     ApiError { status: String, message: String },
@@ -39,7 +35,6 @@ impl GeoError {
         match self {
             GeoError::RequestError(_) => -32001, // Custom Server Error
             GeoError::ParseError(_) => -32700,   // Parse error
-            GeoError::ConfigError(_) => -32002,  // Custom Server Error
             GeoError::ApiError { .. } => -32003, // Custom Server Error
             GeoError::ZeroResults => -32602,     // Invalid params (effectively)
             GeoError::InvalidInput(_) => -32602, // Invalid params
@@ -53,7 +48,6 @@ impl GeoError {
 impl From<GeoError> for PyErr {
     fn from(err: GeoError) -> PyErr {
         match err {
-            GeoError::ConfigError(msg) => pyo3::exceptions::PyValueError::new_err(msg),
             GeoError::ZeroResults => pyo3::exceptions::PyValueError::new_err("No results found"),
             GeoError::InvalidInput(msg) => pyo3::exceptions::PyValueError::new_err(msg),
             GeoError::ApiError { status, message } => {

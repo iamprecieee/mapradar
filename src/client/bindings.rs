@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 impl super::MapradarClient {
     #[new]
     pub fn new(api_key: String) -> Self {
-        Self::_new(api_key)
+        Self::build(api_key)
     }
 
     /// Converts an address string into a geographic location.

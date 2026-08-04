@@ -47,8 +47,5 @@ default = []
 python = ["dep:pyo3", "dep:pyo3-async-runtimes"]
 extension-module = ["python", "pyo3/extension-module", "pyo3/abi3-py39"]
 
-[dev-dependencies]
-tokio-test = "0.4.5"
-
 [package.metadata.docs.rs]
 no-default-features = true

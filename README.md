@@ -150,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `GOOGLE_MAPS_API_KEY` | None | Your Google Maps API key. Enable Geocoding API, Places API (New), and Routes API. |
+| `MAPRADAR_API_KEY` | None | Your Google Maps API key, read from the environment or `--api-key`. Enable Geocoding API, Places API (New), and Routes API. |
 | `max_results` | 20 | Maximum number of places returned per category. |
 | `radius` | 5.0 | Search radius in kilometers. |
 | `--mode` | `drive` | Transit mode for distance calculation (e.g. `drive`, `okada`, `auto`, `ojek`, `danfo`, `angkot`). |
