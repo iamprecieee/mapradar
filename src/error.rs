@@ -6,7 +6,7 @@ use thiserror::Error;
 pub enum GeoError {
     /// Errors related to network requests (e.g., timeout, no internet).
     #[error("API request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
+    RequestError(reqwest::Error),
 
     /// Errors related to JSON parsing (e.g., Google changed their response format).
     #[error("JSON parsing failed: {0}")]
@@ -43,6 +43,16 @@ impl GeoError {
     }
 }
 
+/// The geocoding endpoints pass the API key as a `key=` query parameter, and
+/// `reqwest::Error` includes the request URL in its `Display` output. Stripping
+/// the URL here keeps the key out of error messages, which reach terminals,
+/// log files and bug reports.
+impl From<reqwest::Error> for GeoError {
+    fn from(err: reqwest::Error) -> Self {
+        GeoError::RequestError(err.without_url())
+    }
+}
+
 /// Convention to translate Rust errors into Python-native exceptions.
 #[cfg(feature = "python")]
 impl From<GeoError> for PyErr {
@@ -55,5 +65,32 @@ impl From<GeoError> for PyErr {
             }
             _ => pyo3::exceptions::PyRuntimeError::new_err(err.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn request_errors_do_not_expose_the_api_key() {
+        let api_key = "test-key-that-must-not-leak";
+        // Port 1 refuses the connection, so this fails without a live server.
+        let url = format!("http://127.0.0.1:1/maps/api/geocode/json?key={}", api_key);
+
+        let reqwest_err = reqwest::Client::new()
+            .get(&url)
+            .send()
+            .await
+            .expect_err("a request to a closed port must fail");
+
+        let geo_err: GeoError = reqwest_err.into();
+        let message = geo_err.to_string();
+
+        assert!(
+            !message.contains(api_key),
+            "error message leaked the API key: {}",
+            message
+        );
     }
 }
