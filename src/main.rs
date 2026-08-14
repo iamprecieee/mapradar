@@ -113,7 +113,8 @@ fn print_score_summary(score: &mapradar::models::LocationScore, radius: f64) {
 #[command(name = "mapradar")]
 #[command(about = "CLI for Mapradar Location Intelligence", long_about = None)]
 struct Cli {
-    #[arg(short, long, env = "MAPRADAR_API_KEY")]
+    /// Google Maps API key. Can also be supplied through MAPRADAR_API_KEY.
+    #[arg(short, long, env = "MAPRADAR_API_KEY", hide_env_values = true)]
     api_key: String,
 
     #[command(subcommand)]
@@ -143,7 +144,7 @@ enum Commands {
         #[arg(short, long, default_value_t = 1000.0)]
         radius: f64,
 
-        /// Type of amenity (bank, hospital, school, etc.)
+        /// Comma-separated amenity types; run with an invalid value to see the complete list
         #[arg(short, long, default_value = "bank")]
         r#type: String,
 
@@ -182,7 +183,7 @@ enum Commands {
 
         #[arg(
             long,
-            help = "Mode of travel (drive, walk, bicycle, motorcycle, transit)",
+            help = "Mode of travel (drive, walk, bicycle, transit, two-wheeler, or a regional alias)",
             default_value = "drive"
         )]
         mode: String,
@@ -396,6 +397,14 @@ async fn main() {
             dest_lng,
             mode,
         } => {
+            let resolved_mode = match mapradar::utils::resolve_travel_mode(&mode) {
+                Ok(mode) => mode.to_string(),
+                Err(err) => {
+                    eprintln!("{} {}", "Error:".red().bold(), err);
+                    process::exit(1);
+                }
+            };
+
             let params = TravelParameters {
                 origin_latitude: origin_lat,
                 origin_longitude: origin_lng,
@@ -403,7 +412,7 @@ async fn main() {
                 destination_latitude: dest_lat,
                 destination_longitude: dest_lng,
                 destination_address: dest_addr,
-                travel_mode: Some(mode),
+                travel_mode: Some(resolved_mode),
             };
 
             match client.calculate_travel_distance_async(params).await {
@@ -571,5 +580,25 @@ async fn main() {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn api_key_help_hides_the_environment_value() {
+        let command = Cli::command();
+        let api_key = command
+            .get_arguments()
+            .find(|argument| argument.get_id() == "api_key")
+            .expect("the CLI must expose an api-key argument");
+
+        assert!(
+            api_key.is_hide_env_values_set(),
+            "API keys from MAPRADAR_API_KEY must never appear in --help output"
+        );
     }
 }

@@ -2,6 +2,45 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+## [0.6.0] - 2026-08-14
+
+### Breaking Changes
+
+- `CategoryScore.nearest_distance_km` is now `Option<f64>` in Rust and `Optional[float]` in Python. A category with no matching amenities returns `None`/`null` instead of `f64::MAX`.
+- `scoring::compute_location_score` now accepts the requested service types: `compute_location_score(&intelligence, &service_types, radius_km)`. This keeps categories with zero results in the score.
+- `LocationIntelligence` now includes `failed_lookups`. Rust callers that construct the struct with a literal must initialize the field; `LocationIntelligence::new` remains compatible.
+- Removed the unused `GeoError::ConfigError` variant. Use `GeoError::InvalidInput` for caller-supplied values that fail validation.
+
+### Added
+
+- Canonical service-type support through `ServiceType::ALL`, `slug`, `google_place_type`, `Display`, and `FromStr`.
+- Partial-result reporting through `LocationIntelligence.failed_lookups` and CLI warnings.
+- Human-readable score output, now the default for `mapradar score`; text output can also be written to `.txt` files.
+- Search-center features in intelligence GeoJSON and KML exports, plus the location and complete category breakdown in score exports.
+- Cache regression coverage for lookup reuse, normalization, parameter separation, and cache isolation.
+
+### Changed
+
+- Location scoring now searches and scores all 12 supported service categories. Missing categories score zero instead of being omitted from the average.
+- The CLI validates service types, travel modes, output formats, and output-file extensions before network requests. Unknown values now return an error instead of silently falling back.
+- Exported category names use canonical lowercase slugs that can be passed back to the CLI.
+- Requests use a 10-second connection timeout and a 30-second overall timeout.
+- When only some nearby categories fail, successful categories are returned with failure details. When all fail, the error reports every failed category.
+
+### Fixed
+
+- Prevented Google Maps API keys from appearing in request errors or CLI `--help` output.
+- Preserved JSON-RPC serialization errors instead of returning a misleading successful `null` result.
+- Invalid JSON assigned to a Python `JsonRpcResponse.result` now raises `ValueError` instead of being silently discarded.
+- Included train stations, taxi stands, and landmarks in location scoring.
+- Recomputed distances before sorting points, preventing stale values from a different center from affecting order.
+- Skipped malformed address components that do not contain a `types` array while preserving valid geocode data.
+- Escaped XML-sensitive content in KML and retained the location, overall score, and category breakdown across score export formats.
+- Rounded category average ratings to two decimals to remove floating-point representation noise.
+- Guarded scoring against non-positive radii so results remain finite.
+
 ## [0.5.0] - 2026-06-17
 
 ### Added
@@ -61,3 +100,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 - Initial CLI and Place Details integration
+
+[Unreleased]: https://github.com/iamprecieee/mapradar/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/iamprecieee/mapradar/compare/v0.5.0...v0.6.0

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "mapradar"
-version = "0.5.0"
+version = "0.6.0"
 description = "Turn addresses into coordinates and find nearby amenities using Google Maps API"
 authors = [{ name = "iamprecieee" }]
 license = {file = "LICENSE"}
@@ -27,6 +27,7 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/iamprecieee/mapradar"
+Changelog = "https://github.com/iamprecieee/mapradar/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 features = ["extension-module"]

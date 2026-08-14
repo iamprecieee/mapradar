@@ -129,7 +129,9 @@ pub fn export_score(score: &LocationScore, format: ExportFormat) -> String {
             serde_json::to_string_pretty(&feature).unwrap_or_default()
         }
         ExportFormat::Csv => {
-            let mut csv = String::from("category,score,count,nearest_km,avg_rating\n");
+            let mut csv = String::from(
+                "address,latitude,longitude,overall_score,category,score,count,nearest_km,avg_rating\n",
+            );
             for cat in &score.breakdown {
                 let rating = cat
                     .average_rating
@@ -140,8 +142,29 @@ pub fn export_score(score: &LocationScore, format: ExportFormat) -> String {
                     .map(|distance| format!("{:.2}", distance))
                     .unwrap_or_default();
                 csv.push_str(&format!(
-                    "{},{:.2},{},{},{}\n",
-                    cat.category, cat.score, cat.count_within_radius, nearest, rating
+                    "{},{},{},{:.2},{},{:.2},{},{},{}\n",
+                    csv_field(&score.location.address),
+                    score.location.latitude,
+                    score.location.longitude,
+                    score.overall_score,
+                    csv_field(&cat.category),
+                    cat.score,
+                    cat.count_within_radius,
+                    nearest,
+                    rating
+                ));
+            }
+
+            // A caller can construct an empty LocationScore directly. Keep the
+            // location and overall value in that valid edge-case instead of
+            // emitting a header-only document that loses the score entirely.
+            if score.breakdown.is_empty() {
+                csv.push_str(&format!(
+                    "{},{},{},{:.2},,,,,\n",
+                    csv_field(&score.location.address),
+                    score.location.latitude,
+                    score.location.longitude,
+                    score.overall_score,
                 ));
             }
             csv
@@ -250,6 +273,10 @@ fn escape_xml(value: &str) -> String {
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+}
+
+fn csv_field(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 fn nearby_kml_placemarks(services: &[NearbyService]) -> String {
@@ -471,10 +498,40 @@ mod tests {
         assert_eq!(props["bank"]["count_within_radius"], 1);
 
         let csv = export_score(&score, ExportFormat::Csv);
-        assert!(csv.lines().any(|line| line.starts_with("school,")));
+        let csv_lines: Vec<&str> = csv.lines().collect();
+        assert!(csv_lines[0].starts_with("address,latitude,longitude,overall_score"));
+        assert!(
+            csv_lines
+                .iter()
+                .skip(1)
+                .all(|line| line.contains("Ikeja, Lagos"))
+        );
+        assert!(
+            csv_lines
+                .iter()
+                .skip(1)
+                .all(|line| line.contains(&format!(",{:.2},", score.overall_score)))
+        );
+        assert!(csv_lines.iter().any(|line| line.contains(",\"school\",")));
 
         let kml = export_score(&score, ExportFormat::Kml);
         assert!(kml.contains("school"));
         assert!(kml.trim_end().ends_with("</kml>"));
+    }
+
+    #[test]
+    fn empty_score_csv_preserves_location_and_overall_score() {
+        let score = LocationScore {
+            overall_score: 42.5,
+            breakdown: Vec::new(),
+            location: location(),
+        };
+
+        let csv = export_score(&score, ExportFormat::Csv);
+        let lines: Vec<&str> = csv.lines().collect();
+
+        assert_eq!(lines.len(), 2);
+        assert!(lines[1].contains("\"Ikeja, Lagos\""));
+        assert!(lines[1].contains(",42.50,"));
     }
 }
